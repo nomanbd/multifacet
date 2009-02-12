@@ -38,7 +38,7 @@
 include_once("multifacet_templates.php");
 
 global $_multifacet_solr_domain;
-$_multifacet_solr_domain = "localhost";
+$_multifacet_solr_domain = "134.53.24.160";
 
 global $_multifacet_solr_port;
 $_multifacet_solr_port = "8983";
@@ -1386,7 +1386,7 @@ $_multifacet_map_facet_values = array(
 );
 
 global $_multifacet_worldcat_apikey;
-$_multifacet_worldcat_apikey = "";
+$_multifacet_worldcat_apikey = "5IURDHOjh3k0nVXhCpOIltZrc3jjPkihk0byqILeRGYyRzuo8PxVPpqkGSDJFzM4Q8D5IiXL41aU4iT3";
 
 /*
  * worldcat currently accepts apa, chicago,
@@ -1422,7 +1422,7 @@ $_multifacet_do_gbooks = TRUE;
  */
 // librarything api key
 global $_multifacet_librarything_apikey;
-$_multifacet_librarything_apikey = "";
+$_multifacet_librarything_apikey = "9dd36c125936b0178879faaf7d8cad4f";
 
 // a default image to show 
 global $_multifacet_librarything_default_image;
