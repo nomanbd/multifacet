@@ -1,0 +1,5126 @@
+<?php
+
+/* 
+ * Copyright (c) 2009 by Miami University Libraries.
+ * released under the terms of the GNU Public License.
+ * see the GPLv3 for details.
+ *
+ * Email: cassonrd@muohio.edu
+ * Website: http://www.lib.muohio.edu/
+ * Website: http://code.google.com/p/multifacet/
+ *
+ * This file is part of MULtifacet.
+ * 
+ * MULtifacet is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ * 
+ * MULtifacet is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with MULtifacet.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+require_once "multifacet.inc";
+
+require_once "Pager/Pager.php";
+require_once "Apache/Solr/Service.php";
+
+global $_multifacet_solr;
+$_multifacet_solr = new Apache_Solr_Service( $_multifacet_solr_domain,
+  $_multifacet_solr_port, $_multifacet_solr_base);
+
+if ( !module_exists('search')) {
+  require_once "multifacet_standalone.inc";
+}
+
+/**
+ *  Implementation of hook_menu()
+ */
+function multifacet_menu($may_cache = TRUE) {
+
+  global $_multifacet_do_refworks;
+
+  $items = array();
+
+  if ( !module_exists('search')) {
+    $items[] = array(
+      'path' => 'search/multifacet',
+      'title' => t('MULtifacet Search'),
+      'access' => user_access('search multifacet'),
+      'callback' => 'multifacet_search_standalone',
+      'type' => MENU_SUGGESTED_ITEM,
+    );
+  }
+  else {
+    $items[] = array(
+      'path' => 'multifacet',
+      'title' => t('MULtifacet Search'),
+      'access' => user_access('search multifacet'),
+      'callback' => 'multifacet_search',
+      'type' => MENU_SUGGESTED_ITEM,
+    );
+  }
+
+  $items[] = array(
+    'path' => 'multifacet/rss',
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_rss',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/opensearch',
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_opensearch',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/opensearch.xml',
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_opensearch_description',
+    'type' => MENU_CALLBACK,
+  );
+
+  if ( $_multifacet_do_refworks) {
+    $items[] = array(
+      'path' => 'multifacet/refworks',
+      'access' => user_access('search multifacet'),
+      'callback' => 'multifacet_refworks',
+      'type' => MENU_CALLBACK,
+    );
+  }
+
+  $items[] = array(
+    'path' => 'multifacet/debug',
+    'title' => t('MULtifacet Debug'),
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_debug',
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/unapi',
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_unapi',
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/reorder_facets',
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_reorder_facets',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/toggle_facets',
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_toggle_facets',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/toggle_all_facets',
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_toggle_all_facets',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/cite',
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_cite',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/tag',
+    'access' => user_access('tag multifacet records'),
+    'callback' => 'multifacet_tag',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/ltcover',
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_ltcover',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/marked',
+    'title' => t('MULtifacet Saved Records'),
+    'access' => user_access('mark multifacet records'),
+    'callback' => 'multifacet_marked',
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/marked_submit',
+    'access' => user_access('mark multifacet records'),
+    'callback' => 'multifacet_marked_submit',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/marked_clear',
+    'access' => user_access('mark multifacet records'),
+    'callback' => 'multifacet_marked_clear',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/marked_clear_ajax',
+    'access' => user_access('mark multifacet records'),
+    'callback' => 'multifacet_marked_clear_ajax',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/browse',
+    'title' => t('MULtifacet Browse'),
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_browse',
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/tag_ajax',
+    'access' => user_access('tag multifacet records'),
+    'callback' => 'multifacet_tag_ajax',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/tags_submit',
+    'access' => user_access('tag multifacet records'),
+    'callback' => 'multifacet_tags_submit',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array( 'path' => 'multifacet/sms_ajax',
+    'access' => user_access('sms multifacet records'),
+    'callback' => 'multifacet_sms_ajax',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array( 'path' => 'multifacet/sms',
+    'access' => user_access('sms multifacet records'),
+    'callback' => 'multifacet_sms',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/sms_submit',
+    'access' => user_access('sms multifacet records'),
+    'callback' => 'multifacet_sms_submit',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/mark_ajax',
+    'access' => user_access('mark multifacet records'),
+    'callback' => 'multifacet_mark_ajax',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/mark_submit',
+    'access' => user_access('mark multifacet records'),
+    'callback' => 'multifacet_mark_submit',
+    'type' => MENU_CALLBACK,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/tags/cloud',
+    'title' => t('MULtifacet Tagcloud'),
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_tag_cloud',
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/taggers/cloud',
+    'title' => t('MULtifacet Tagger Cloud'),
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_tagger_cloud',
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/tags',
+    'title' => t('MULtifacet Tags'),
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_tags_combined',
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/tags/recent',
+    'title' => t('MULtifacet Recently Tagged'),
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_tags_recent',
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/tags/popular_items',
+    'title' => t('MULtifacet: Popular Tagged Items'),
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_tags_popular_items',
+    'type' => MENU_SUGGESTED_ITEM,
+  );
+
+  $items[] = array(
+    'path' => 'multifacet/record',
+    'access' => user_access('search multifacet'),
+    'callback' => 'multifacet_record',
+    'type' => MENU_CALLBACK,
+  );
+
+  return $items;
+
+}
+
+/**
+ * Implementation of hook_perm().
+ */
+function multifacet_perm() {
+  return array('search multifacet', 'tag multifacet records',
+    'mark multifacet records', 'sms multifacet records');
+}
+
+/**
+ * Implementation of hook_search().
+ */
+function multifacet_search($op = 'search', $keys = NULL) {
+  
+  global $_pazpar_search_term;
+
+  switch ($op) {
+    case 'name':
+      return t('MULtifacet');
+    case 'search':
+      /*
+      $js = "var Drupal_base_path = '". base_path() ."';";
+      drupal_add_js($js, 'inline');
+      drupal_add_js(drupal_get_path('module', 'multifacet')
+        .'/jquery.multifacet.js');
+      drupal_add_js(drupal_get_path('module', 'multifacet') .
+        '/jquery-ui.js');
+      drupal_set_title("MULtifacet Search");
+      */
+
+      if ($keys != '*' && $keys != '*:*') {
+        $_pazpar_search_term = $keys;
+      }
+
+      return _multifacet_search($keys);
+  }
+}
+
+/**
+ * internal implementation of hook_search
+ *
+ * first argument is the search term, followed by whether or not to return
+ * facets in the results...
+ *
+ * why? example: rss results won't need the facet info, so don't have solr
+ * generate them 
+ */
+function _multifacet_search($keys, $facets = TRUE) {
+
+  global $_multifacet_num_search_results, $_multifacet_num_found,
+    $_multifacet_facets, $_multifacet_returned_facets,
+    $_multifacet_search_fields, $_multifacet_default_search_field,
+    $_multifacet_available, $_multifacet_tagger_facet, $_multifacet_tag_facet,
+    $multifacet_tagged_facets, $_multifacet_solr_tags, $user;
+
+  if ( !$_multifacet_search_fields[$_GET['field']] || !$_GET['field']) {
+    $_GET['field'] = $_multifacet_default_search_field;
+  }
+
+  $extras = __multifacet_solr_extras($_GET);
+
+  // make sure pageID is cool
+  if ( !(int)$_GET['pageID']) {
+    $_GET['pageID'] = 1;
+  }
+
+  if ( $_multifacet_solr_tags) {
+    if ( $_multifacet_tagger_facet) {
+
+      $extras['facet'] = "true";
+      $extras['facet.mincount'] = 1;
+
+      if ( $_GET['tagger']) {
+        $extras['fq'][] = 'tagger:"'. addslashes($_GET['tagger']) .'"';
+      }
+
+      $extras['facet.field'][] = "tagger";
+      $extras['facet.limit'][] = (int) $_multifacet_tagger_facet['search_number'];
+     
+      if ($_multifacet_tagger_facet['facet_type'] == 'facet.prefix')  {
+        $field_name = 'f.tagger.facet.prefix';
+        $extras[$field_name] = $_multifacet_tagger_facet['facet_prefix_query'];
+      }
+
+    }
+
+    if ( $_multifacet_tag_facet) {
+
+      $extras['facet'] = "true";
+      $extras['facet.mincount'] = 1;
+
+      if ( $_GET['tag']) {
+        $extras['fq'][] = 'tag:"'. addslashes($_GET['tag']) .'"';
+      }
+
+      $extras['facet.field'][] = "tag";
+      $extras['facet.limit'][] = (int) $_multifacet_tag_facet['search_number'];
+     
+      if ($_multifacet_tag_facet['facet_type'] == 'facet.prefix')  {
+        $field_name = 'f.tag.facet.prefix';
+        $extras[$field_name] = $_multifacet_tag_facet['facet_prefix_query'];
+      }
+     
+    }
+
+  }
+  else {
+
+    if ( $_GET['tag'] && $_GET['tagger']) {
+     
+      $result = db_query( "SELECT uid FROM {users} WHERE name='%s'",
+        $_GET['tagger']);
+
+      while ( $row = db_fetch_array( $result)) {
+        $uid = $row['uid'];
+      }
+
+      $result = db_query("SELECT id FROM {multifacet_tagged_records}
+        WHERE (public='t' OR uid='%d') AND tag='%s' AND uid='%d'",
+          $user->uid,
+          $_GET['tag'],
+          $uid);
+
+      if ( db_num_rows( $result)) {
+        while ( $row = db_fetch_array( $result)) {
+          $solr_query_tags[] =  $row['id'];
+        }
+      }
+
+    }
+    elseif ( $_GET['tag']) {
+      $result = db_query("SELECT id FROM {multifacet_tagged_records}
+        WHERE (public='t' OR uid='%d') AND tag='%s'", $user->uid, $_GET['tag']);
+
+      if ( db_num_rows( $result)) {
+        while ( $row = db_fetch_array( $result)) {
+          $solr_query_tags[] =  $row['id'];
+        }
+      }
+    }
+    elseif ( $_GET['tagger']) {
+      $result = db_query( "SELECT uid FROM {users} WHERE name='%s'",
+        $_GET['tagger']);
+
+      while ( $row = db_fetch_array( $result)) {
+        $uid = $row['uid'];
+      }
+
+      if ( $uid) {
+        $result = db_query("SELECT id FROM {multifacet_tagged_records}
+          WHERE (public='t' OR uid='%d') AND uid='%s'", $user->uid,
+            $uid);
+
+        if ( db_num_rows( $result)) {
+          while ( $row = db_fetch_array( $result)) {
+            $solr_query_tags[] =  $row['id'];
+          }
+        }
+      }
+    }
+ 
+  }
+
+  if ( $_GET['tag'] || $_GET['tagger']) {
+    if (count( $solr_query_tags)) {
+      $solr_query = 'id:("'. implode('" OR "', $solr_query_tags) .'")';
+      $extras['fq'][] = $solr_query;
+    }
+    else {
+      // we had a tag or tagger query, but no
+      // document ids were matched, so don't
+      // perform the search;
+      $shortcircuit_search = 1;
+    }
+  }
+
+  $multifacet_merged_facets = _multifacet_merge_facets($_SESSION['multifacet_facet_order']);
+
+  // add facets to the solr query
+  if (count( $_GET['fn']) && count( $_GET['fv'])) {
+    for ( $i = 0; $i < count( $_GET['fn']); $i++) {
+      //if ( array_key_exists($_GET['fn'][$i], $_multifacet_facets)) {
+      if ( in_array($_GET['fn'][$i], $multifacet_merged_facets)) {
+        $extras['fq'][] = $_GET['fn'][$i] .':"'. addslashes($_GET['fv'][$i])
+          .'"';
+      }
+    }
+  }
+
+  // add availability fq to solr query
+  if ( $_GET['avail'] && $_multifacet_available) {
+    $extras['fq'][] = $_multifacet_available['fq'];
+  }
+
+  //if (count( $_multifacet_facets)) {
+  if (count( $multifacet_merged_facets) && $facets) {
+    $extras['facet'] = "true";
+    $extras['facet.mincount'] = 1;
+
+    foreach ( $multifacet_merged_facets as $facet_name) {
+
+      $extras['facet.field'][] = $facet_name;
+      $extras['facet.limit'][] = (int) $_multifacet_facets[$facet_name]['search_number'];
+     
+      if ($_multifacet_facets[$facet_name]['facet_type'] == 'facet.prefix')  {
+        $field_name = 'f.'. $facet_name .'.facet.prefix';
+        $extras[$field_name] = $_multifacet_facets[$facet_name]['facet_prefix_query'];
+      }
+   
+    }
+
+  }
+
+  // calculate where the solr results
+  $solr_start = ($_GET['pageID'] * $_multifacet_num_search_results)
+    - $_multifacet_num_search_results;
+
+  if ( !$shortcircuit_search) {
+    $response = multifacet_solr_search($keys, $solr_start,
+      $_multifacet_num_search_results, $extras);
+  }
+
+  if ( $response->response->numFound) {
+    $_multifacet_num_found = $response->response->numFound;
+
+    $_multifacet_returned_facets = $response->facet_counts->facet_fields;
+
+    if ( $_multifacet_solr_tags) {
+      $multifacet_tagged_facets['tagger'] =
+        $response->facet_counts->facet_fields->tagger;
+      $multifacet_tagged_facets['tag'] =
+        $response->facet_counts->facet_fields->tag;
+    }
+
+    return $response->response->docs;
+  }
+
+}
+
+/*
+ * FIXME
+ *
+ * can probably just unset the entire
+ * form, and replace it with the one
+ * from multifacet_standalone.inc
+ *
+ * override and alter the search form
+ */
+function multifacet_form_alter($form_id, &$form) {
+
+  global $_multifacet_search_fields, $_multifacet_default_search_field,
+    $multifacet_url_append, $multifacet_breadcrumbs,
+    $_multifacet_default_sort_field, $_multifacet_sort_fields, $user,
+    $_multifacet_advanced_limits, $_multifacet_available;
+
+  if ($form_id == 'search_form'
+      && arg(1) == 'multifacet') {
+
+    $js = "var Drupal_base_path = '". base_path() ."';";
+    drupal_add_js($js, 'inline');
+
+    drupal_set_html_head('<link rel="unapi-server" type="application/xml" 
+      title="unAPI" href="http://'. $_SERVER['SERVER_NAME'] . base_path() 
+      .'multifacet/unapi/"/>') ;
+    drupal_set_html_head('<link rel="search" 
+      type="application/opensearchdescription+xml" 
+      title="MULtifacet"
+      href="http://'. $_SERVER['HTTP_HOST'] . base_path() 
+      .'multifacet/opensearch.xml" />') ;
+    drupal_add_css(drupal_get_path('module', 'multifacet') .'/multifacet.css');
+    
+    drupal_add_js(drupal_get_path('module', 'multifacet') . 
+      '/jquery.nyroModal-1.3.1.pack.js');
+    $js = "$(function() { 
+      $.nyroModalSettings({
+        titleFromIframe: false
+      });
+    })";
+    drupal_add_js($js, 'inline');
+
+    drupal_add_js(drupal_get_path('module', 'multifacet') . 
+      '/jquery-ui.js');
+    drupal_add_js(drupal_get_path('module', 'multifacet') . 
+      '/jquery.jqURL.js');
+    drupal_add_js(drupal_get_path('module', 'multifacet') . 
+      '/jquery.multifacet.js');
+    drupal_add_css(drupal_get_path('module', 'multifacet') .'/nyroModal.css');
+  
+    $keys = $form['basic']['inline']['keys'];
+    unset($form['basic']['inline']['keys']);
+
+    /*
+     * FIXME (?)
+     *
+     * feels hacky, having to generate
+     * these here, and pass them around
+     * globally
+     */
+    if ($keys['#value']) {
+      $multifacet_breadcrumbs = _multifacet_build_breadcrumbs( $_GET);
+      $multifacet_url_append = 
+        $multifacet_breadcrumbs[count($multifacet_breadcrumbs) - 1]['path'];
+    }
+
+    if ( $_multifacet_search_fields[$_GET['field']]) {
+      $default = $_GET['field'];
+    }
+    else {
+      $default = $_multifacet_default_search_field;
+    }
+
+    if ( $_multifacet_sort_fields[$_GET['sort']]) {
+      $sort_default = $_GET['sort'];
+    }
+    else {
+      $sort_default = $_multifacet_default_sort_field;
+    }
+
+    for ( $i = 0; $i < count( $multifacet_breadcrumbs); $i++) {
+      $multifacet_breadcrumbs_output .= '<span class="multifacet_breadcrumb">
+        <a href="'. $multifacet_breadcrumbs[$i]['path']
+        .'">'. $multifacet_breadcrumbs[$i]['label'] .'</a> ';
+
+      if ( $multifacet_breadcrumbs[$i]['drop_path']) {
+        $multifacet_breadcrumbs_output .= '<a href="'
+          . $multifacet_breadcrumbs[$i]['drop_path']
+          .'">'. $multifacet_breadcrumbs[$i]['drop_label'] .'</a> ';
+
+      }
+      $multifacet_breadcrumbs_output .= '</span>';
+    }
+
+    /*
+     * FIXME (?)
+     *
+     * this is very hackish, and i don't
+     * like it.
+     *
+     */
+    if ( count($_REQUEST['fn'])) {
+      $form['fn'] = array(
+        '#type' => 'hidden',
+        '#value' => serialize( $_REQUEST['fn']),
+      );
+      $form['fv'] = array(
+        '#type' => 'hidden',
+        '#value' => serialize( $_REQUEST['fv']),
+      );
+    }
+
+    if ( count( $multifacet_breadcrumbs)) {
+      $form['breadcrumbs'] = array(
+        '#type' => 'markup',
+        '#value' => '<div id="multifacet_breadcrumbs">' 
+          . t("You searched for: ") . $multifacet_breadcrumbs_output .'</div>',
+      );
+    }
+
+    $title = $form['basic']['#title'];
+    unset($form['basic']['#title']);
+
+    //$form['basic']['#title'] = $title;
+    $form['keys'] = $keys;
+   
+    if ( count( $_multifacet_search_fields)) {
+      while ( list( $key, $values) = each ($_multifacet_search_fields)) {
+        $search_fields_list[$key] = $values['label'];
+      }
+      reset($_multifacet_search_fields);
+     
+      $form['field'] = array(
+        '#type' => 'select',
+        '#options' => $search_fields_list,
+        '#default_value' => $default,
+        '#prefix' => '<span>',
+        '#suffix' => '</span>',
+      );
+    }
+
+    if ( count( $_multifacet_sort_fields)) {
+      while ( list( $key, $values) = each ($_multifacet_sort_fields)) {
+        $sort_fields_list[$key] = $values['label'];
+      }
+      reset($_multifacet_sort_fields);
+     
+      $form['sort'] = array(
+        '#type' => 'select',
+        '#options' => $sort_fields_list,
+        '#default_value' => $sort_default,
+      );
+    }
+   
+    $submit = $form['basic']['inline']['submit'];
+    unset($form['basic']['inline']['submit']);
+
+    $form['submit'] = $submit;
+
+    if ( $_multifacet_available || count( $_REQUEST['fn'])) {
+      $form['break1'] = array(
+        '#value' => '<br />',
+      );
+    }
+
+    if ($_multifacet_available) {
+      $form['avail'] = array(
+        '#type' => 'checkbox',
+        '#title' => t('Available'),
+        '#default_value' => $_GET['avail'],
+      );
+    }
+
+    if ( count( $_REQUEST['fn'])) {
+      $form['keep_f'] = array(
+          '#type' => 'checkbox',
+          '#title' => t("Keep filters on search"),
+          '#default_value' => $_GET['keep_f'],
+          );
+    }
+
+    if ( $_multifacet_tagger_facet || $_multifacet_tag_facet 
+        && ( $_GET['tagger'] || $_GET['tag'])) {
+      $form['break2'] = array(
+        '#value' => '<br />',
+      );
+    }
+
+    if ( $_multifacet_tagger_facet) {
+      if ( $_GET['tagger']) {
+        $form['tagger'] = array(
+            '#type' => 'checkbox',
+            '#title' => '<strong>'. $_multifacet_tagger_facet['label'] 
+              .": </strong>". $_GET['tagger'],
+            '#default_value' => $_GET['tagger'],
+            '#return_value' => $_GET['tagger'],
+            );
+      }
+    }
+
+    if ( $_multifacet_tag_facet) {
+      if ( $_GET['tag']) {
+        $form['tag'] = array(
+            '#type' => 'checkbox',
+            '#title' => '<strong>'. $_multifacet_tag_facet['label'] 
+            .": </strong>". $_GET['tag'],
+            '#default_value' => $_GET['tag'],
+            '#return_value' => $_GET['tag'],
+            );
+      }
+    }
+
+    if ( count( $_multifacet_advanced_limits)) {
+
+      $form['advanced'] = array(
+        '#type' => 'fieldset',
+        '#title' => t( "Advanced Options"),
+        '#collapsible' => TRUE,
+        '#collapsed' => TRUE,
+      );
+      
+      while ( list( $key, $values) = each ($_multifacet_advanced_limits)) {
+        while ( list($type, $info) = each ( $values)) {
+          $options[$type] = $info['label'];
+          // url has passed a valid value, so expand the fieldset
+          if ( $_GET[$key] == $type && isset( $_GET[$key])) {
+            $expanded = 1;
+          }
+        }
+        $form['advanced']['limits'][$key] = array(
+          '#title' => $key,
+          '#type' => 'radios',
+          '#options' => $options,
+          '#default_value' => $_GET[$key],
+        );
+        unset( $options);
+      }
+
+      if ( $expanded) {
+        $form['advanced']['#collapsed'] = FALSE;
+      }
+
+      reset($_multifacet_advanced_limits);
+    
+    }
+
+    $form['#submit']['multifacet_search_form_submit'] = array();
+
+  }
+
+}
+
+/*
+ * debug function to view $user
+ * and $_SESSION info
+ */
+function multifacet_debug($id = NULL) {
+
+  global $user, $_multifacet_unique_key;
+
+  drupal_add_js(drupal_get_path('module', 'multifacet') . 
+    '/jquery.nyroModal-1.3.1.pack.js');
+  $js = "$(function() { 
+    $.nyroModalSettings({
+      titleFromIframe: false
+    });
+  })";
+  drupal_add_js($js, 'inline');
+
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/nyroModal.css');
+  drupal_add_js(drupal_get_path('module', 'multifacet') .
+    '/jquery.multifacet.js');
+  $output .= "<pre>";
+  $output .= "SESSION:<br />";
+  $output .= print_r( $_SESSION, TRUE);
+  $output .= "user:<br />";
+  $output .= print_r( $user, TRUE);
+  $output .= "</pre>";
+
+  if ( $id) {
+    $extras['indent'] = "on";
+    $output .= t("Document ID: ") . $id;
+    $response = multifacet_solr_search($_multifacet_unique_key .":". $id, 0,
+      1, $extras);
+    $output .= "<pre>". print_r( $response, TRUE) ."</pre>";
+  }
+  //$output .= phpinfo( );
+  return $output;
+}
+
+function multifacet_cite($id, $format = NULL) {
+  global $_multifacet_worldcat_apikey, $_multifacet_worldcat_citation_format;
+
+  _multifacet_no_cache_headers();
+
+  $output .= '<html>
+  <head>
+    <title>'. t("MULtifacet Citation") .'</title>
+    <style type="text/css" media="all">@import "'. base_path()
+      . drupal_get_path('module', 'multifacet')
+      .'/multifacet.css";</style>
+  </head>
+ 
+  <body id="multifacet_cite_page">
+  ';
+
+  if ( $_multifacet_worldcat_citation_format) {
+
+    $citation_url = 'http://www.worldcat.org/webservices/catalog/content/citations/'
+      . drupal_urlencode($id) .'?cformat='
+      . drupal_urlencode($_multifacet_worldcat_citation_format)
+      .'&wskey='. $_multifacet_worldcat_apikey;
+    
+    $response = drupal_http_request( $citation_url);
+  
+    if ( $response->data == "info:srw/diagnostic/1/65Record does not exist") {
+      $output .= "<div style='margin: 10px; padding: 10px; border: 1px
+        dashed #a1443a;'>". t("<strong>Error: </strong>      
+        That oclc number was not found.  It's probably
+        due to incorrect data in the source record.....sorry.") ."</div>";
+    }
+    else {
+
+      $pattern = '/<(p class="citation_style_([A-Z]+)")>/';
+      $replacement = '<strong>${2}</strong><br /><${1}>';
+      $matches = preg_replace($pattern, $replacement, $response->data);
+
+      $output .= $matches .'<hr noshade="noshade" />';
+  
+    }
+ 
+  $output .= t("<p>Disclaimer: This citation has been formatted automatically by
+  <a href='http://www.lib.muohio.edu/' target='_blank'>Miami University Libraries</a> and
+  <a href='http://www.oclc.org' target='_blank'>OCLC</a>, using their
+  <a href='http://worldcat.org/devnet/index.php/Services' target='_blank'>Worldcat API</a>.</p>
+
+  <p>Please note: Most combinations of browsers and word processors will allow you to copy
+  this citation and paste it into a document with the formatting intact. You should always
+  double-check the final result.</p>
+
+  <p>Remember, you are responsible for the completeness and formatting
+  of citations you include in papers, manuscripts, and course assignments.</p>
+  <hr noshade='noshade' />");
+
+  }
+
+  $output .= '
+
+  </body>
+ 
+  </html>';
+  print $output;
+  //return $output;
+}
+
+/*
+ * the search results page
+ *
+ * takes the $results array and a
+ * $total number of hits
+ */
+function _multifacet_results_list($results, $total = 0) {
+
+  global $_multifacet_num_search_results, $multifacet_url_append,
+    $multifacet_breadcrumbs, $_multifacet_unique_key, $_multifacet_do_gbooks, 
+    $_multifacet_sort_fields;
+
+  drupal_set_message(number_format($total) ." matches found");
+
+  //if ( count( $results)) {
+  if ( $total) {
+
+    // make sure pageID is cool
+    if ( !(int)$_GET['pageID']) {
+      $_GET['pageID'] = 1;
+    }
+
+    $multifacet_breadcrumbs = _multifacet_build_breadcrumbs( $_GET);
+    $multifacet_url_append = 
+      $multifacet_breadcrumbs[count($multifacet_breadcrumbs) - 1]['path'];
+
+    // build the pager
+    $pager_options = array(
+        'append' => FALSE,
+        'path' => '',
+        'fileName' =>  $multifacet_url_append ."&pageID=%d",
+        'mode' => 'Sliding',
+        'perPage' => $_multifacet_num_search_results,
+        'delta' => 2,
+        'totalItems' => $total,
+        );
+
+    $ol_start = ($_GET['pageID'] * $_multifacet_num_search_results)
+      - $_multifacet_num_search_results + 1;
+
+    $pager = Pager::factory($pager_options);
+
+    $pager_div = '<div class="pager multifacet_pager">'. $pager->links
+      .'</div>';
+   
+    $output .= $pager_div;
+
+    // start link options for rss feed
+    $rss_args = $_GET;
+
+    // set to first page
+    $rss_args['pageID'] = 1;
+
+    /*
+     * FIXME
+     *
+     * better handling of paths with/without
+     * trailing slashes
+     */
+    $output .= '<div id="multifacet_rss_resort">';
+
+    /*
+     * FIXME
+     *
+     * need to rethink this, to accommodate
+     * RSS feeds of publicly marked records
+     */
+    if ( $rss_args['q'] != 'multifacet/marked') {
+      $rss_args['q'] = str_replace('search/multifacet/', 'multifacet/rss/',
+        $rss_args['q']);
+     
+      $rss_args['q'] = str_replace('multifacet/marked/', 'multifacet/rss/'
+        . $rss_args[0], $rss_args['q']);
+     
+      $rss_url = 'http://'. $_SERVER['HTTP_HOST'] . base_path()
+        . drupal_urlencode($rss_args['q']);
+  
+      unset( $rss_args['q']);
+     
+      while ( list( $key, $value) = each( $rss_args)) {
+        if ( is_array($value)) {
+          for ($i = 0; $i < count($value); $i++) {
+            $rss_url .= '&'. drupal_urlencode($key) .'[]='
+              . drupal_urlencode($value[$i]);
+          }
+        }
+        else {
+          $rss_url .= '&'. drupal_urlencode($key) .'='
+            . drupal_urlencode($value);
+        }
+      }
+     
+      drupal_set_html_head('<link rel="alternate" type="application/rss+xml"
+        title="'. t("MULtifacet RSS") .'" href="'. $rss_url .'"/>') ;
+
+      $output .= '<a id="multifacet_rss" href="'. $rss_url 
+        .'"><img class="borderless" src="' . base_path() 
+        .'misc/feed.png" title="'. t("RSS feed of search")
+        .'" alt="'. t("RSS feed of search") .'" /></a>';
+     
+    }
+
+    if ( count( $_multifacet_sort_fields)) {
+    
+      // make sure "sort" is valid
+      if ( $_multifacet_sort_fields[$_GET['sort']]) {
+        $sort_default = $_GET['sort'];
+      }
+      else {
+        $sort_default = $_multifacet_default_sort_field;
+      }
+
+      // start form for resorting
+      $output .= '<form action="javascript:void(0);" id="multifacet_resort">'
+          . t("Sort by: ") .'
+        <select name="multifacet_resort_list" id="multifacet_resort_list"
+          onchange="multifacet_resort();">';
+
+        // resort options
+        while ( list( $key, $values) = each ($_multifacet_sort_fields)) {
+
+          $output .= '<option value="'. $key .'"';
+         
+          if ($key == $sort_default)  {
+            $output .= ' selected="selected"';
+          }
+
+          $output .= '>'. $values['label'] .'</option>';
+        
+        }
+     
+      $output .= '</select>
+        </form>';
+
+      reset( $_multifacet_sort_fields);
+   
+    }
+  
+    $output .= '</div>';
+
+    $output .= '<div id="multifacet_result_list">';
+    $output .= '<ol start="'. $ol_start .'">';
+   
+    foreach ( $results as $item) {
+      $output .= '<li class="multifacet_search_result"
+        id="'. $item->$_multifacet_unique_key .'">';
+      $output .= multifacet_search_item($item);
+      $output .= '<div class="clear"></div></li>';
+    }
+    $output .= "</ol>";
+    $output .= '</div>';
+
+    $output .= $pager_div;
+
+    if ( $_multifacet_do_gbooks)  {
+      $output .= '
+      <script type="text/javascript">
+      $(document).ready(function(){
+        var gbooks = $("a.multifacet_gbook");
+        var gbooks_query = "";
+        if (gbooks.length) {
+
+          for ( var i = 0; i < gbooks.length; i++) {
+            if ( gbooks_query) {
+              gbooks_query += ",";
+            }
+            gbooks_query += gbooks[i].id;
+          }
+         
+          $("body").append("<script type=\'text/javascript\' src=\'http://books.google.com/books?jscmd=viewapi&bibkeys=" + gbooks_query + "&callback=ProcessGBSBookInfo\'><\/script>");
+        }
+      });
+      </script>
+      ';
+    }
+
+  }
+  else {
+    $output .= t( "No results found.");
+  }
+
+  return $output;
+
+}
+
+/*
+ * marked/saved records page
+ *
+ * FIXME
+ *
+ * still a bit too much duplication
+ * with the search page, so could stand
+ * some refactoring
+ */
+function multifacet_marked($name = NULL) {
+
+  global $user, $_multifacet_unique_key, $_multifacet_num_search_results,
+    $_multifacet_facets, $_multifacet_returned_facets,
+    $_multifacet_email_marked, $_multifacet_do_refworks;
+
+  drupal_set_html_head('<link rel="unapi-server" type="application/xml"
+    title="unAPI" href="http://'. $_SERVER['SERVER_NAME'] . base_path()
+    .'multifacet/unapi/"/>') ;
+  $js = "var Drupal_base_path = '". base_path() ."';";
+  drupal_add_js($js, 'inline');
+  drupal_add_js(drupal_get_path('module', 'multifacet') .
+    '/jquery-ui.js');
+  drupal_add_js(drupal_get_path('module', 'multifacet') .
+    '/jquery.jqURL.js');
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/multifacet.css');
+
+  //$breadcrumbs = _multifacet_build_breadcrumbs( $_GET);
+  //print_r( $breadcrumbs);
+ 
+  drupal_add_js(drupal_get_path('module', 'multifacet') . 
+    '/jquery.nyroModal-1.3.1.pack.js');
+  $js = "$(function() { 
+    $.nyroModalSettings({
+      titleFromIframe: false
+    });
+  })";
+  drupal_add_js($js, 'inline');
+
+  drupal_add_js(drupal_get_path('module', 'multifacet') .
+    '/jquery.multifacet.js');
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/nyroModal.css');
+
+  // make sure pageID is cool
+  if ( !(int)$_GET['pageID']) {
+    $_GET['pageID'] = 1;
+  }
+
+  /*
+   * FIXME
+   *
+   * need to handle sorting, etc.
+   * of marked page
+   */
+  //$extras = __multifacet_solr_extras($_GET);
+ 
+  // add facets to the solr query
+  if (count( $_GET['fn']) && count( $_GET['fv'])) {
+    for ( $i = 0; $i < count( $_GET['fn']); $i++) {
+      $extras['fq'][] = $_GET['fn'][$i] .':"'. addslashes($_GET['fv'][$i])
+        .'"';
+    }
+  }
+
+  /*
+  if (count( $_multifacet_facets)) {
+    $extras['facet'] = "true";
+    $extras['facet.mincount'] = 1;
+
+    while ( list( $facet_name, $details) =
+        each( $_multifacet_facets)) {
+      $extras['facet.field'][] = $facet_name;
+      $extras['facet.limit'][] = (int) $details['search_number'];
+    }
+ 
+  }
+  */
+
+  // calculate where the solr results start
+  $solr_start = ($_GET['pageID'] * $_multifacet_num_search_results)
+    - $_multifacet_num_search_results;
+
+  // user is looking at their own
+  if ( !isset($name) || $name == $user->name) {
+
+    if ( count( $_SESSION['multifacet_marked_records'])) {
+
+      $solr_query = $_multifacet_unique_key .':("'.
+        @implode('" OR "', array_keys($_SESSION['multifacet_marked_records']))
+        .'")';
+
+      $response = multifacet_solr_search($solr_query, $solr_start,
+        $_multifacet_num_search_results, $extras);
+   
+      if ( $response->response->numFound) {
+
+        $_multifacet_returned_facets = $response->facet_counts->facet_fields;
+      
+        $output .= _multifacet_results_list($response->response->docs,
+          $response->response->numFound);
+
+      }
+
+    }
+
+  // looking at someone's "public" marked records
+  }
+  elseif ($name ) {
+
+    drupal_set_title( t("Publicly Saved Records for User Name: %name",
+      array( '%name' => $name)));
+
+    // lookup their uid
+    $result = db_query( "SELECT uid FROM {users} WHERE name='%s'",
+      $name);
+
+    while ( $row = db_fetch_array( $result)) {
+      $uid = $row['uid'];
+    }
+
+    // lookup their publicly marked records
+    $result = db_query("SELECT id FROM {multifacet_marked_records}
+      WHERE public='t' AND uid='%d'", $uid);
+
+    if ( db_num_rows( $result)) {
+
+      while ( $row = db_fetch_array( $result)) {
+        $ids[] = $row['id'];
+      }
+
+      $solr_query = $_multifacet_unique_key .':("'.
+        @implode('" OR "', $ids) .'")';
+
+      $response = multifacet_solr_search($solr_query, $solr_start,
+        $_multifacet_num_search_results, $extras);
+    
+      if ( $response->response->numFound) {
+        $output .= _multifacet_results_list( $response->response->docs,
+          $response->response->numFound);
+        $_multifacet_returned_facets = $response->facet_counts->facet_fields;
+      }
+
+    }
+
+  }
+
+  if ( !$output) {
+    $output = t( "No Saved Records Found.");
+  }
+  else {
+
+    $form .= '<form method="post" action="'. base_path()
+      .'multifacet/marked_submit" id="multifacet_marked_form">'
+      . t("Export items to: ") .'<select id="multifacet_export_options"
+        name="multifacet_export_options" onchange="multifacet_export();">';
+
+    if ( $_multifacet_do_refworks) {
+      $form .= '<option value="refworks">'. t("RefWorks")
+        .'</option>';
+    }
+   
+    if ( $_multifacet_email_marked) {
+      $form .= '<option value="email">'. t("Email") .'</option>';
+    }
+ 
+    $form .= '<option value="screen">'. t( "Screen") .'</option>';
+   
+    $form .= '</select>';
+   
+    if ( $_multifacet_email_marked) {
+      $form .= '<input type="text" id="multifacet_export_email"
+        name="multifacet_export_email" size="35" value="'.  $user->mail
+        .'" />';
+    }
+
+    $form .= '<input id="multifacet_export_submit"
+      name="multifacet_export_submit" type="submit" value="'. t('Send')
+      .'"/>';
+
+    if ($uid) {
+      $form .= '<input type="hidden" id="uid" name="uid" value="'
+        . check_plain( $uid) .'" />';
+    }
+
+    $form .= '</form>
+   
+    <script type="text/javascript">
+    $(document).ready(function() {
+      multifacet_export();
+    });
+    </script>';
+
+    $output = $form . $output;
+ 
+  }
+
+  return $output;
+
+}
+
+/* * hook for the search results page
+ */
+function multifacet_search_page($results) {
+
+  global $_multifacet_num_found;
+
+  if ( count( $results)) {
+    $output .= _multifacet_results_list( $results, $_multifacet_num_found);
+  }
+  else {
+    $output .= t( "No results found.");
+  }
+
+  return $output;
+
+}
+
+/*
+ * format a returned item
+ * from the search
+ *
+ * wrapper for the $_multifacet_brief_record_callback,
+ * which outputs a brief record
+ */
+function multifacet_search_item($item) {
+ 
+  global $_multifacet_brief_record_callback;
+
+  //$output .= '<div><a href="'. $item['link'] .'">'. $item['title'] .  '</a></div>';
+  $output .= $_multifacet_brief_record_callback( $item);
+ 
+  return $output;
+}
+
+/*
+ * internal record function, which can
+ * be overridden/declared in multifacet.inc:
+ *
+ * global $_multifacet_brief_record_callback;
+ * $_multifacet_brief_record_callback = '_multifacet_brief_record';
+ *
+ * FIXME
+ * factor out a lot of the tag/tagger
+ * searching/displaying...lots of crossover
+ * with _multifacet_tag, as it returns
+ * many of the same things
+ *
+ */
+function _multifacet_brief_record($doc) {
+
+  global $_multifacet_tag_splitter, $_multifacet_unique_key, $user,
+    $_multifacet_do_gbooks, $_multifacet_solr_tags;
+
+  $max_volumes_shown = 2;
+
+  $output .= '<div id="multifacet_brief_'. $doc->$_multifacet_unique_key .'">';
+
+  $doc->oclc = preg_replace('/^ocm/', '', $doc->oclc);
+  $doc->oclc = preg_replace('/^ocn/', '', $doc->oclc);
+ 
+  $output .= '<div class="right_brief">';
+ 
+  if ( $doc->thumbnail_image) {
+    if ($doc->url[0]) {
+      $output .= '<a target="new" href="'. $doc->url[0] .'">';
+    }
+    $output .= '<img src="'. $doc->thumbnail_image .'" alt="'
+      . t("Thumbnail Image") .'" />';
+    if ($doc->url[0]) {
+      $output .= '</a>';
+    }
+  }
+  elseif ( $_multifacet_do_gbooks && $doc->oclc) {
+    $output .= multifacet_gbooks_template("OCLC:". $doc->oclc);
+  }
+  elseif ($doc->isn) {
+    $output .= multifacet_gbooks_template("ISBN:". $doc->isn[0]);
+  }
+
+  /*
+  $output .= '<div class="right_brief" style="float: right;">';
+  if ((string)strpos($_GET['q'], "multifacet/marked") == "0") {
+    $output .= multifacet_mark_template($doc->$_multifacet_unique_key, 1);
+  }
+  else {
+    $output .= multifacet_mark_template($doc->$_multifacet_unique_key, 0);
+  }
+  */
+
+  $output .= "</div>";
+
+  $output .= '<div class="left_brief">';
+  $output .= '<a name="'. check_plain($doc->$_multifacet_unique_key)
+    .'" href="'. _multifacet_record_link( $doc->$_multifacet_unique_key)
+    .'">'. $doc->display_title .'</a>';
+
+  if ( $doc->source == 'mu_innopac') {
+    $output .= " (". _multifacet_to_iii( $doc->$_multifacet_unique_key) .")";
+  }
+ 
+  if ( count($doc->authors)) {
+    $i = 0;
+    foreach ( $doc->authors as $authors) {
+      if ( $i) {
+        $output .= ", ";
+      }
+      else {
+        $output .= '<br /><strong>'. t("Author(s): ") .'</strong>';
+      }
+      $output .= '<a href="'. base_path() .'search/multifacet/'.
+        drupal_urlencode('"'. $authors .'"') .  '&amp;field=author">'.
+        check_plain($authors) .'</a>';
+      $i++;
+    }
+  }
+
+  if ( count($doc->iloc)) {
+
+    if ( $max_volumes_shown > count($doc->iloc)) {
+      $limit = count($doc->iloc);
+    }
+    else {
+      $limit = $max_volumes_shown;
+    }
+
+    for ( $i = 0; $i < $limit; $i++) {
+
+      $output .= '<div class="item_location"><strong>'. t('Location: ')
+        .'</strong>'. _multifacet_map_facet_values('iloc', $doc->iloc[$i])
+        .': '. $doc->item_callnumber[$i];
+    
+      if ( isset($doc->item_volume[$i])) {
+        $output .= ' '. $doc->item_volume[$i];
+      }
+
+      if ( isset($doc->item_copy[$i])) {
+        $output .= ' c.'. $doc->item_copy[$i];
+      }
+
+      $output .= ' '. _multifacet_map_facet_values('item_status',
+        $doc->item_status[$i]);
+     
+      $output .= '</div>';
+
+    }
+   
+    if (count( $doc->iloc) > $i) {
+      $output .= '<a class="multifacet_more_volumes"  href="'
+        . _multifacet_record_link( $doc->$_multifacet_unique_key)
+        .'">'. t("More Copies/Volumes Available") .'</a>';
+    }
+      
+  }
+
+
+  if ( count( $doc->formats)) {
+    $output .= '<div><strong>'. t( 'Format: ') .'</strong>';
+    $output .= implode(", ", $doc->formats);
+    $output .= '</div>';
+  }
+
+  if ( ( $doc->lib_has)) {
+    for ( $i = 0; $i < count( $doc->lib_has); $i++) {
+      if ( $doc->lib_has[$i]) {
+        if ( $lib_has) {
+          $lib_has .= ',';
+        }
+        $lib_has .= $doc->lib_has[$i];
+      }
+    }
+
+    if ( $lib_has) {
+      $output .= '<div><strong>'. t( 'Library Has: ') .'</strong>'
+        . $lib_has .'</div>';
+    }
+
+  }
+
+  if ( count( $doc->url)) {
+    for ( $i = 0; $i < count( $doc->url); $i++) {
+    $output .= '<div><strong>'. t( 'URL: ') .'</strong>';
+    $output .= '<a href="'. $doc->url[$i] .'">'. $doc->url_label[$i] .'</a>';
+    $output .= '</div>';
+    }
+  }
+
+  if ($doc->composed_mattype) {
+    $output .= '<div><strong>'. t( 'Material Type: ') .'</strong>';
+    $output .= $doc->composed_mattype;
+    $output .= '</div>';
+  }
+
+  $output .= _multifacet_user_tags($doc);
+  $output .= _multifacet_public_tags($doc);
+
+  $display = "";
+  if (!$taggers) {
+    $display = ' style="display:none;"';
+  }
+
+  $output .= '<div id="multifacet_taggers_div_'
+      . $doc->$_multifacet_unique_key
+      .'"'. $display .'><strong>'. t("Tagged By: ")
+    .'</strong><span id="multifacet_taggers_'
+    . $doc->$_multifacet_unique_key .'">'. $taggers .'</span></div>';
+
+  //$output .= multifacet_worldcat_template($doc->oclc);
+
+  $output .= multifacet_cite_template($doc->oclc);
+
+  $output .= multifacet_sms_template( $doc->$_multifacet_unique_key);
+ 
+  $output .= multifacet_tag_template($doc->$_multifacet_unique_key);
+
+  $output .= multifacet_refworks_template($doc->$_multifacet_unique_key);
+ 
+  $output .= multifacet_mark_template($doc->$_multifacet_unique_key, 0);
+
+  $output .= multifacet_delicious_template( $doc);
+
+  $output .= multifacet_coins_template( $doc);
+ 
+  $output .= multifacet_unapi_template($doc->$_multifacet_unique_key);
+
+  $output .= "</div>";
+
+  $output .= '</div>';
+
+  return $output;
+
+}
+
+function _multifacet_sms_record($doc) {
+
+  //global $_multifacet_unique_key, $user;
+
+  $output .= $doc->display_title .'
+';
+  if ( count( $doc->mainheading)) {
+    $output .= $doc->mainheading[0] .'
+';
+  }
+ 
+  if ( count($doc->iloc)) {
+
+    for ( $i = 0; $i < count( $doc->iloc); $i++) {
+
+      $output .= _multifacet_map_facet_values('iloc', $doc->iloc[$i]) .': '
+        . $doc->item_callnumber[$i];
+     
+      $output .= ' '. _multifacet_map_facet_values('item_status',
+        $doc->item_status[$i]) .'
+';
+     
+    }
+ 
+  }
+
+  return $output;
+
+}
+
+/*
+ * internal record function, which can
+ * be overridden/declared in multifacet.inc:
+ *
+ * global $_multifacet_email_record_callback;
+ * $_multifacet_email_record_callback = '_multifacet_email_record';
+ *
+ */
+function _multifacet_email_record($doc) {
+
+  global $_multifacet_unique_key;
+
+  $output .= t("Title: ") .'
+'. $doc->display_title .'
+
+';
+
+  if ( count($doc->mainheading)) {
+    $output .= t("Author:") .'
+'. join("\n", $doc->mainheading) .'
+
+';
+  }
+
+  $output .= t("Permanent URL: ") .'
+http://'. $_SERVER['HTTP_HOST'] . base_path() .'multifacet/record/'
+  . $doc->$_multifacet_unique_key .'
+
+';
+
+  if ( count($doc->iloc)) {
+
+    $output .= t("Location") .'
+';
+
+    for ( $i = 0; $i < count( $doc->iloc); $i++) {
+
+      $output .=  _multifacet_map_facet_values('iloc', $doc->iloc[$i])
+        .': '. $doc->item_callnumber[$i];
+     
+      if ( isset($doc->item_volume[$i])) {
+        $output .= ' '. $doc->item_volume[$i];
+      }
+
+      if ( isset($doc->item_copy[$i])) {
+        $output .= ' c.'. $doc->item_copy[$i];
+      }
+
+      $output .= ' '. _multifacet_map_facet_values('item_status',
+        $doc->item_status[$i]);
+     
+      $output .= '
+';
+
+    }
+ 
+  }
+
+  $output .= '
+----------------------------------------
+';
+
+  return $output;
+
+}
+
+
+/*
+ * wrapper for the $_multifacet_full_record_callback,
+ * which outputs a full record
+ *
+ * FIXME
+ * think more about pushing mlt to a block, etc.
+ *
+ */
+function multifacet_record($id) {
+
+  global $_multifacet_full_record_callback, $_multifacet_unique_key,
+    $_multifacet_mlt_callback, $_multifacet_mlt_parameters;
+
+  if (count( $_multifacet_mlt_parameters)) {
+    $extras = $_multifacet_mlt_parameters;
+  }
+
+  $response = multifacet_solr_search($_multifacet_unique_key .':"'. $id .'"',
+    0, 1, $extras);
+
+  if ( $response->response->numFound) {
+    $output .= $_multifacet_full_record_callback($response->response->docs[0]);
+    if ( count($response->moreLikeThis->$id->docs)) {
+      $output .= '<div class="multifacet_mlt_list">';
+      $output .= '<h2>'. t('Similar Items') .'</h2>';
+      $output .= '<ol>';
+      foreach ( $response->moreLikeThis->$id->docs as $doc) {
+        $output .= '<li>'. $_multifacet_mlt_callback($doc) .'</li>';
+      }
+      $output .= '</ol>';
+      $output .= '</div>';
+    }
+  }
+  else {
+    $output .= t("Record not found for %id", array('%id' => $id));
+  }
+
+  return $output;
+
+}
+
+/*
+ * internal record function, which can
+ * be overridden/declared in multifacet.inc:
+ *
+ * global $_multifacet_full_record_callback;
+ * $_multifacet_full_record_callback = '_multifacet_full_record';
+ *
+ */
+function _multifacet_full_record($doc) {
+
+  global $_multifacet_do_gbooks, $_multifacet_unique_key;
+
+  drupal_set_html_head('<link rel="unapi-server" type="application/xml"
+    title="unAPI" href="http://'. $_SERVER['SERVER_NAME'] . base_path()
+    .'multifacet/unapi/"/>') ;
+  $js = "var Drupal_base_path = '". base_path() ."';";
+  drupal_add_js($js, 'inline');
+  
+  drupal_add_js(drupal_get_path('module', 'multifacet') . 
+    '/jquery.nyroModal-1.3.1.pack.js');
+  $js = "$(function() { 
+    $.nyroModalSettings({
+      titleFromIframe: false
+    });
+  })";
+  drupal_add_js($js, 'inline');
+
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/nyroModal.css');
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/multifacet.css');
+  drupal_add_js(drupal_get_path('module', 'multifacet') .
+    '/jquery.multifacet.js');
+ 
+  if ( $doc->statement_of_responsibility) {
+    drupal_set_title( $doc->display_title ." / "
+      . $doc->statement_of_responsibility[0]);
+  }
+  else {
+    drupal_set_title( $doc->display_title);
+  }
+
+  $output .= '<div class="multifacet_full_record">';
+  if ( $_multifacet_do_gbooks)  {
+
+    $output .= '
+    <script type="text/javascript">
+    $(document).ready(function(){
+      var gbooks = $("a.multifacet_gbook");
+      var gbooks_query = "";
+      if (gbooks.length) {
+
+        for ( var i = 0; i < gbooks.length; i++) {
+          if ( gbooks_query) {
+            gbooks_query += ",";
+          }
+          gbooks_query += gbooks[i].id;
+        }
+       
+        $("body").append("<script type=\'text/javascript\' src=\'http://books.google.com/books?jscmd=viewapi&bibkeys=" + gbooks_query + "&callback=ProcessGBSBookInfo\'><\/script>");
+      }
+    });
+    </script>
+    ';
+ 
+  }
+
+  $output .= '<div style="float: right; clear: right; margin: 10px;">';
+
+  $doc->oclc = preg_replace('/\s/', '', $doc->oclc);
+  $doc->oclc = preg_replace('/^ocm/', '', $doc->oclc);
+  $doc->oclc = preg_replace('/^ocn/', '', $doc->oclc);
+ 
+  if ( $doc->thumbnail_image) {
+    if ($doc->url[0]) {
+      $output .= '<a target="new" href="'. $doc->url[0] .'">';
+    }
+    $output .= '<img src="'. $doc->thumbnail_image .'" alt="'
+      . t("Thumbnail Image") .'" />';
+    if ($doc->url[0]) {
+      $output .= '</a>';
+    }
+  }
+  elseif ( $_multifacet_do_gbooks && $doc->oclc) {
+    $output .= multifacet_gbooks_template("OCLC:". $doc->oclc);
+  }
+  elseif ($doc->isn) {
+    $output .= multifacet_gbooks_template("ISBN:". $doc->isn[0]);
+  }
+
+  $output .= '</div>';
+
+  $output .= multifacet_cite_template($doc->oclc);
+ 
+  $output .= multifacet_sms_template( $doc->$_multifacet_unique_key);
+ 
+  $output .= multifacet_tag_template($doc->$_multifacet_unique_key);
+
+  $output .= multifacet_refworks_template($doc->$_multifacet_unique_key);
+
+  $output .= multifacet_mark_template($doc->$_multifacet_unique_key);
+
+  $output .= multifacet_delicious_template( $doc);
+
+  $output .= multifacet_coins_template( $doc);
+ 
+  $output .= multifacet_unapi_template($doc->$_multifacet_unique_key);
+
+  /*
+  $output .= '<div id="multifacet_full_record_tags">';
+  $output .= _multifacet_user_tags($doc);
+  $output .= _multifacet_public_tags($doc);
+  $output .= '</div>';
+  */
+
+  $output .= '<table class="multifacet_record_details">';
+
+  /*
+  if ( isset( $doc->mainheading)) {
+      $output .= '<tr><th>'. t( "Main Author: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->mainheading as $mainheading) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $output .= '<a href="'. base_path() .'search/multifacet/'.
+          drupal_urlencode('"'. $mainheading .'"') .  '&amp;field=author">'.
+          check_plain($mainheading) .'</a>';
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+  */
+
+  // don't show if authors is exact same as mainheading
+  //if ( isset( $doc->authors) && $doc->authors != $doc->mainheading) {
+  if ( isset( $doc->authors)) {
+      $output .= '<tr><th>'. t( "Author(s): ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->authors as $author) {
+        // hide any that are already show as mainheadings
+        if (!@in_array($author, $doc->mainheading))  {
+          if ( $i) {
+            $output .= ", ";
+          }
+          $output .= '<a href="'. base_path() .'search/multifacet/'.
+            drupal_urlencode('"'. $author .'"') .  '&amp;field=author">'.
+            check_plain($author) .'</a>';
+          $i++;
+        }
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( isset( $doc->formats)) {
+      $output .= '<tr><th>'
+        . t( "Formats: ") .'</th><td>';
+      $i = 0;
+      foreach ( $doc->formats as $format) {
+        if ( $i) {
+          $output .= ", ";
+        }
+        $output .= _multifacet_map_facet_values('formats',
+          check_plain($format));
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( isset( $doc->composed_mattype)) {
+      $output .= '<tr><th>'
+        . t( "Material Type: ") .'</th><td>'
+        . _multifacet_map_facet_values('composed_mattype',
+          check_plain($doc->composed_mattype)) .'</td></tr>';
+  }
+
+  if ( isset( $doc->languages)) {
+      $output .= '<tr><th>'. t( "Language: ")
+        .'</th><td>'. check_plain(implode(", ", $doc->languages))
+        .'</td></tr>';
+  }
+
+  if ( isset( $doc->imprint)) {
+    $output .= '<tr><th>'. t("Published: ")
+      .'</th><td>'. check_plain(implode( '<br />', $doc->imprint))
+      .'</td></tr>';
+  }
+ 
+  if ( isset( $doc->series_traced)) {
+      $output .= '<tr><th>'. t( "Series: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->series_traced as $series) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $series_info = explode("\t", $series);
+        $output .= '<a href="'. base_path() .'search/multifacet/'.
+          drupal_urlencode($series_info[0]) .  '&amp;field=keyword">'.
+          check_plain($series_info[0]) .'</a>';
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( isset( $doc->subjects)) {
+      $output .= '<tr><th>'. t( "Subjects: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->subjects as $subject) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $output .= '<a href="'. base_path() .'search/multifacet/'.
+          drupal_urlencode('"'. $subject .'"') .  '&amp;field=subject">'.
+          check_plain($subject) .'</a>';
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+  
+  if ( ( $doc->lib_has)) {
+    for ( $i = 0; $i < count( $doc->lib_has); $i++) {
+      if ( $doc->lib_has[$i]) {
+        if ( $lib_has) {
+          $lib_has .= ',';
+        }
+        $lib_has .= $doc->lib_has[$i];
+      }
+    }
+
+    if ( $lib_has) {
+      $output .= '<tr><th>'. t( 'Library Has: ') .'</th><td>'
+        . $lib_has .'</td></tr>';
+    }
+
+  }
+
+  if ( ( $doc->latest_received)) {
+    for ( $i = 0; $i < count( $doc->latest_received); $i++) {
+      if ( $doc->latest_received[$i]) {
+        if ( $latest_received) {
+          $latest_received .= ',';
+        }
+        $latest_received .= $doc->latest_received[$i];
+      }
+    }
+
+    if ( $latest_received) {
+      $output .= '<tr><th>'. t( 'Latest Received: ') .'</th><td><a href="'
+        . $latest_received .'">'. t( 'Details ') .'</a></td></tr>';
+    }
+
+  }
+
+  if ( isset( $doc->url)) {
+      $output .= '<tr><th>'. t( "Online Access: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->url as $url) {
+
+        if ( $i) {
+          $output .= "<br />";
+        }
+
+        if ( $doc->url_label[$i]) {
+          $label = check_plain( $doc->url_label[$i]);
+        }
+        else  {
+          $label = $url;
+        }
+
+        $output .= '<a href="'. $url .'">'. $label .'</a>';
+       
+        $i++;
+     
+      }
+
+      $output .= '</td></tr>';
+  }
+
+  if ( count($doc->iloc)) {
+
+    $output .= '<tr><th>'. t( "Call Number: ")
+      .'</th><td>';
+    for ( $i = 0; $i < count( $doc->iloc); $i++) {
+
+      if ( $i) {
+        $output .= '<br />';
+      }
+
+      $output .= check_plain($doc->item_callnumber[$i]);
+     
+      if ( isset($doc->item_volume[$i])) {
+        $output .= ' '. $doc->item_volume[$i];
+      }
+
+      if ( isset($doc->item_copy[$i])) {
+        $output .= ' c.'. $doc->item_copy[$i];
+      }
+
+      $output .= ' '. _multifacet_map_facet_values('item_status',
+        $doc->item_status[$i]);
+     
+    }
+    $output .= '</td></tr>';
+ 
+  }
+
+ 
+  if ( isset( $doc->lc_class)) {
+      $output .= '<tr><th>'. t( "LC Classification: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->lc_class as $lc_class) {
+        if ( $i) {
+          $output .= ", ";
+        }
+        $output .= '<a href="'. base_path()
+          .'search/multifacet/*&field=keyword&keep_f=1&fn[]=lc_class&fv[]='
+          . drupal_urlencode($lc_class) .'">'. check_plain( $lc_class) .'</a>';
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( isset( $doc->extent)) {
+      $output .= '<tr><th>'. t( "Physical Description: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->extent as $extent) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $output .= check_plain($extent);
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( isset( $doc->notes_public)) {
+      $output .= '<tr><th>'. t( "Notes: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->notes_public as $notes_public) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $output .= check_plain($notes_public);
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( $doc->source == 'mu_innopac') {
+    $output .= " (". _multifacet_to_iii( $doc->$_multifacet_unique_key) .")";
+  }
+
+  /*
+  if ( $doc->source = 'mu-innopac') {
+    $output .= '<tr><th>'. t("Other Options: ")
+      .'</th><td><a target="_blank" class="external"
+      style="margin-right: 15px;" href="http://holmes.lib.muohio.edu/record='
+      . drupal_urlencode(substr($doc->$solrpac_unique_key, 5)) .'">'
+      . t('Classic View') .'</a>';
+    $output .= '<a target="_blank" class="external" style="margin-right: 15px;"
+      href="http://olc1.ohiolink.edu/search/z?'
+      . drupal_urlencode(str_replace("gb", "g b", $doc->$solrpac_unique_key))
+      .'">'. t('OhioLINK') .'</a>';
+
+    if (isset($doc->oclc)) {
+      $doc->oclc = preg_replace('/\s/', '', $doc->oclc);
+      $doc->oclc = preg_replace('/^ocm/', '', $doc->oclc);
+      $doc->oclc = preg_replace('/^ocn/', '', $doc->oclc);
+      $output .= ' <a target="_blank" class="external"
+        href="http://www.worldcat.org/search?q='
+        . drupal_urlencode("no:". $doc->oclc) .'">'. t( "Worldcat")
+        .'</a>';
+    }
+
+    $output .= '</td></tr>';
+ 
+  }
+  */
+ 
+  $output .= '</table></div>';
+
+  return $output;
+
+}
+
+/*
+ * wrapper around the SolrPHPClient
+ * to process the extras array
+ */
+function multifacet_solr_search($query, $start, $number, $extras = array()) {
+
+  global $_multifacet_solr;
+
+  /*
+   * we're trying a wildcard query,
+   * but using a dismax handler,
+   * so we unset the query, and use q.alt
+   * instead
+   */
+  if (($query == "*:*" || $query == "*")
+      && $extras['handler_type'] == 'dismax') {
+    unset($query);
+    $extras['q.alt'] = "*:*";
+  }
+  elseif ( $query == "*" && $extras['handler_type'] == 'standard') {
+    $query = "*:*";
+  }
+
+  $_multifacet_solr->setCollapseSingleValueArrays(FALSE);
+
+  try {
+    $response = $_multifacet_solr->search( $query, $start, $number, $extras);
+  } catch ( Exception $e) {
+    $response = $e->getMessage();
+  }
+
+  return $response;
+
+}
+
+/*
+ * process the submitted search form
+ */
+function multifacet_search_form_submit( $form_id, $form_values) {
+
+  global $_multifacet_advanced_limits;
+
+  $append = "field=". drupal_urlencode( $form_values['field']) ."&sort="
+    . drupal_urlencode( $form_values['sort']);
+
+  if ($form_values['keep_f']) {
+    $append .= "&keep_f=1";
+    $fn = unserialize(unserialize($form_values['fn']));
+    $fv = unserialize(unserialize($form_values['fv']));
+    for ( $i = 0; $i < count( $fn); $i++) {
+      $append .= "&fn[]=". drupal_urlencode($fn[$i])
+        ."&fv[]=". drupal_urlencode($fv[$i]);
+    }
+  }
+
+  if ( count( $form_values['limits'])) {
+    foreach ( $form_values['limits'] as $limit) {
+      if ( $limit) {
+        $append .= "&limits[]=". drupal_urlencode( $limit);
+      }
+    }
+  }
+
+  if ( $form_values['avail']) {
+    $append .= "&avail=1";
+  }
+
+  if ( $_POST['tagger']) {
+    $append .= '&tagger='. drupal_urlencode( $_POST['tagger']);
+  }
+
+  if ( $_POST['tag']) {
+    $append .= '&tag='. drupal_urlencode( $_POST['tag']);
+  }
+
+  while ( list($key, $info) = each( $_multifacet_advanced_limits)) {
+    if ( $_POST[$key]) {
+      if ( array_key_exists($_POST[$key], $info)) {
+        $append .= '&'. drupal_urlencode($key) .'='
+          . drupal_urlencode($_POST[$key]);
+      }
+    }
+  }
+
+  /*
+  print "<pre>";
+  print_r( $form_values);
+  print_r( $_POST);
+  print $append;
+  print "</pre>";
+  */
+
+  drupal_goto('search/multifacet/'. urlencode($form_values['keys']), $append);
+
+}
+
+/*
+ * start to build an 'extras' array that will
+ * be sent to the solr search.
+ *
+ * only doing the search field/handler at this
+ * point, but maybe do more stuff, like
+ * calculating paging, start, etc.
+ */
+function __multifacet_solr_extras($in) {
+
+  global $_multifacet_search_fields, $_multifacet_default_search_field,
+    $_multifacet_sort_fields, $_multifacet_default_sort_field,
+    $_multifacet_solr_extras, $_multifacet_advanced_limits;
+
+  if ( is_array( $_multifacet_solr_extras)) {
+    $extras = $_multifacet_solr_extras;
+  }
+  else {
+    $extras = array();
+  }
+
+  $extras['qt'] = $_multifacet_search_fields[$in['field']]['handler'];
+  $extras['handler_type'] = $_multifacet_search_fields[$in['field']]['type'];
+
+  // make sure field is cool
+  if ( !isset($_multifacet_search_fields[$in['field']])) {
+    $in['field'] = $_multifacet_default_search_field;
+  }
+
+  // make sure sort field is cool
+  if ( !isset($_multifacet_sort_fields[$in['sort']])) {
+    $in['sort'] = $_multifacet_default_sort_field;
+  }
+
+  if ( $_multifacet_search_fields[$in['field']]['type'] == 'dismax') {
+      $extras['qf'] = $_multifacet_search_fields[$in['field']]['fields'];
+  }
+  elseif ( $_multifacet_search_fields[$in['field']]['type'] == 'standard') {
+    if ( $in['field'] != 'expert') {
+      $in['field'] = $_multifacet_search_fields[$in['field']]['fields'] .":(". $in['field'] .")";
+    }
+  }
+
+  $extras['sort'] = $_multifacet_sort_fields[$in['sort']]['field'];
+  //$extras['qt'] = $_multifacet_search_fields[$in['field']]['handler'];
+ 
+  /*
+   * passing the handler type to the extras
+   * array, to make some more decisions
+   * when the search is actually sent to solr
+   */
+  //$extras['handler_type'] = $_multifacet_search_fields[$in['field']]['type'];
+
+  while ( list( $key, $values) = each ($_multifacet_advanced_limits)) {
+    while ( list($type, $info) = each ( $values)) {
+      $options[$type] = $info['label'];
+      // url has passed a valid value, so add to the fq's
+      if ( $_GET[$key] == $type && isset( $_GET[$key])) {
+        $extras['fq'][] = $info['limit'];
+      }
+    }
+  }
+  reset( $_multifacet_advanced_limits);
+
+  return $extras;
+ 
+}
+
+/*
+ * build search breadcrumbs, with the
+ * proper links/drop_paths/etc
+ */
+function _multifacet_build_breadcrumbs($in) {
+
+  global $_multifacet_drop_img, $_multifacet_search_fields, $_multifacet_facets,
+    $_multifacet_sort_fields, $_multifacet_advanced_limits;
+
+  if ( $_multifacet_drop_img) {
+    $drop_label = '<img src="'. $_multifacet_drop_img
+      .'" alt="'. t("X") .'" class="_multifacet_drop_img"/>';
+  }
+  else {
+    $drop_label = t("X");
+  }
+
+  while (list( $key, $value) = each($in)) {
+    if ( @array_key_exists($key, $_multifacet_advanced_limits)) {
+      //print 'key: '. $key .': '. print_r( $value, TRUE) .'<br />';
+      $advanced_limits .= '&'. drupal_urlencode($key) .'='
+        . drupal_urlencode($value);
+    }
+  }
+
+  reset($in);
+
+  $breadcrumbs[0]['path'] = base_path() . drupal_urlencode($in['q'])
+    .'?field='. drupal_urlencode($in['field']) .'&sort='
+    . drupal_urlencode($in['sort']) . $advanced_limits;
+  $breadcrumbs[0]['label'] = $_multifacet_search_fields[$in['field']]['label']
+    .": ". arg(2);
+
+  if ( $in['avail']) {
+    $breadcrumbs[0]['path'] .= "&avail=1";
+  }
+
+  if ( $in['keep_f']) {
+    $breadcrumbs[0]['path'] .= "&keep_f=1";
+  }
+
+  if (arg(2) != "*" && arg(2) != "*:*") {
+    $breadcrumbs[0]['drop_path'] = base_path() .'search/multifacet/*';
+    $breadcrumbs[0]['drop_label'] = $drop_label;
+  }
+
+  if (count ( $in['fn'])) {
+
+    for ( $i = 0; $i < count( $in['fn']); $i++) {
+
+      if ( array_key_exists($in['fn'][$i], $_multifacet_facets)) {
+     
+        $j = $i + 1;
+
+        $breadcrumbs[$j]['path'] = $breadcrumbs[$i]['path']
+          .'&fn[]='. drupal_urlencode( $in['fn'][$i])
+          .'&fv[]='. drupal_urlencode( $in['fv'][$i]);
+        $breadcrumbs[$j]['label'] =
+          $_multifacet_facets[$in['fn'][$i]]['label'] .": ". $in['fv'][$i];
+
+        $breadcrumbs[$j]['drop_path'] = $breadcrumbs[0]['path'];
+        $breadcrumbs[$j]['drop_label'] = $drop_label;
+
+        /*
+         * add each facet to the other facets' drop_urls
+         */
+        for ( $k = 0; $k < count( $in['fn']); $k++) {
+
+          $facet_name = $in['fn'][$k];
+          $facet_value = $in['fv'][$k];
+
+          /*
+           * only want to add the facets to the drop_path
+           * if it exists, and only once to the
+           * "drop the search" path
+           */
+          if ( $breadcrumbs[0]['drop_path'] && !$i) {
+              $breadcrumbs[0]['drop_path'] .= "&fn[]="
+                . drupal_urlencode($facet_name) ."&fv[]="
+                . drupal_urlencode($facet_value);
+          }
+
+          /*
+           * don't add facet to itself...that's the entire point
+           * of a drop_path ;)
+           */
+          if ( $k != $i) {
+              $breadcrumbs[$j]['drop_path'] .= "&fn[]="
+              . drupal_urlencode($facet_name) ."&fv[]="
+              . drupal_urlencode($facet_value);
+          }
+
+        }
+     
+      }
+
+    }
+  }
+
+  return $breadcrumbs;
+ 
+}
+
+function multifacet_block($op = 'list', $delta = 0, $edit = array()) {
+
+  global $_multifacet_returned_facets, $__multifacet_num_search_facets_shown,
+    $_multifacet_show_applied_facet, $multifacet_url_append, $_multifacet_facets,
+    $multifacet_tagged_facets, $_multifacet_default_search_field,
+    $_multifacet_tag_facet, $_multifacet_tagger_facet,
+    $__multifacet_num_search_facets_shown;
+
+  switch ($op) {
+
+    case 'list':
+      $blocks[0]['info'] = t('MULtifacet Facets');
+      $blocks[1]['info'] = t('MULtifacet Marked Records');
+      $blocks[2]['info'] = t('MULtifacet Tagging Facets');
+      $blocks[3]['info'] = t('MULtifacet Quick Search Block');
+      return $blocks;
+
+    case 'view':
+      if ( $delta == 0 && ( count($_multifacet_returned_facets))) {
+
+        $block['subject'] = t('Refine Search');
+      
+        //cycle thru each of the facet objects
+        while ( list($facet_name, $facet_field) =
+            each( $_multifacet_returned_facets)) {
+
+          // reset for a 'hide/show' toggle
+          $facet_toggle = FALSE;
+         
+          // reset each time, so as not
+          // to show facet headers, etc
+          $facet_output = '';
+
+          if ( array_key_exists($facet_name, $_multifacet_facets)) {
+
+            if ( $_SESSION['multifacet_collapsed_facets'][$facet_name]) {
+              $display = ' style="display:none;" ';
+              $link_style = "multifacet_collapsed_link";
+              //$img = base_path() . drupal_get_path('module', 'multifacet') .'/expand.gif';
+              $label = t("Expand");
+            }
+            else {
+              //$img = base_path() . drupal_get_path('module', 'multifacet') .'/collapse.gif';
+              $link_style = "multifacet_expanded_link";
+              $label = t("Collapse");
+            }
+         
+            // counter to keep track of facet_toggle
+            $i = 0;
+            while ( list( $facet_value, $facet_count) = each( $facet_field)) {
+
+              if ( $i == $__multifacet_num_search_facets_shown) {
+                $facet_shown_style = ' multifacet_facet_hidden';
+                $facet_output .= '<dt
+                  class="multifacet_facet_value multifacet_more_less"><a
+                  href="javascript:multifacet_toggle_more_less(\''
+                  . $facet_name .'\')">'. t("More/Fewer...") .'</a></dt>';
+              }
+
+              $facet_applied = FALSE;
+
+              if ( is_array( $_GET['fn']) && is_array( $_GET['fv'])) {
+
+                if ( in_array( $facet_name, $_GET['fn'])
+                    && in_array( $facet_value, $_GET['fv'])) {
+
+                  $facet_applied = TRUE;
+                }
+              }
+
+              if (!$facet_applied) {
+
+                /*
+                 * FIXME
+                 * if you click on a facet, should
+                 * the "keep facets" checkbox get
+                 * filled by default on the 
+                 * resulting form?
+                 */
+
+                $facet_output .= '<dt class="multifacet_facet_value'
+                  . $facet_shown_style .'"><a href="'
+                  . $multifacet_url_append
+                  .'&fn[]='. drupal_urlencode($facet_name) .'&fv[]='
+                  . drupal_urlencode($facet_value) .'">'
+                  . _multifacet_map_facet_values($facet_name, $facet_value)
+                  .'</a> ('. number_format(check_plain($facet_count))
+                  .')</dt>';
+
+              }
+              elseif ( $_multifacet_show_applied_facet) {
+
+                $facet_output .= '<dt class="multifacet_facet_value
+                  multifacet_applied_facet'. $facet_shown_style .'">'
+                  . _multifacet_map_facet_values($facet_name, $facet_value)
+                  .'</dt> ';
+
+              }
+
+              $i++;
+
+            }
+
+            if ( $facet_output) {
+             
+              if ( $i > $__multifacet_num_search_facets_shown) {
+                $facet_output .= '<dt style="display:none;"
+                  class="multifacet_facet_value multifacet_more_less'
+                  . $facet_shown_style .'"><a
+                  href="javascript:multifacet_toggle_more_less(\''
+                  . $facet_name .'\')">'. t("More/Fewer...") .'</a></dt>';
+              }
+
+              $facet_output = '<div class="multifacet_facet_div" id="id_'
+                . htmlentities($facet_name) .'" >
+                  <a class="multifacet_facet_toggle '. $link_style
+                .'" id="'. $facet_name .'_toggle_link"
+                  href="javascript:multifacet_toggle_facets(\''
+                . $facet_name .'\'); void(0);">'
+                .  htmlentities($_multifacet_facets[$facet_name]['label'])
+                .'</a>'.'<dl id="'
+                . htmlentities($facet_name)
+                .'_facet_dl" '. $display .' class="multifacet_facet_list">'
+                . $facet_output .'</dl></div>';
+              /*
+              $facet_output = '<div class="multifacet_facet_div">
+                  <img src="'. base_path()
+                . drupal_get_path('module', 'multifacet') .'/winmove.gif"
+                  alt="'. $label .'" border="0" id="'. $facet_name
+                .'_facet_image" class="multifacet_facet_image"/><a
+                  class="multifacet_facet_toggle '. $link_style .'" id="'
+                . $facet_name .'_toggle_link"
+                  href="javascript:multifacet_toggle_facets(\''
+                . $facet_name .'\'); void(0);">'
+                .  htmlentities($_multifacet_facets[$facet_name]['label'])
+                .'</a>'.'<dl id="'
+                . htmlentities($facet_name)
+                .'_facet_list" '. $display.' class="multifacet_facet_list">'
+                . $facet_output .'</dl></div>';
+              */
+          
+              // build the "real" output for the block
+              // by concatenating all the facet_output's
+              $output .= $facet_output;
+
+            }
+
+            // unset the facet collapsed-ness and hidden-ness
+            unset($display);
+            unset($img);
+            unset($label);
+            unset($facet_shown_style);
+            unset($link_style);
+          }
+     
+        }
+
+        if ( $output) {
+          $block['content'] = '<div id="multifacet_facets_block">
+            <div id="multifacet_toggle_all_facets">
+            <a href="javascript:multifacet_toggle_all_facets(\'expanded\');">'
+              . t("Expand All") .'</a>
+            <a href="javascript:multifacet_toggle_all_facets(\'collapsed\');">'
+              . t("Collapse All") .'</a>
+            </div>'
+            . $output .'</div>
+            <script type="text/javascript">
+            $(document).ready(function() {
+              $("#multifacet_facets_block").sortable({
+                cursor: "move",
+                opacity: .5,
+                delay: 200,
+                items: "div.multifacet_facet_div",
+                axis: "y",
+                update: function() {
+                  $.getJSON(\''. base_path() .'multifacet/reorder_facets?\'
+                    + $(this).sortable(\'serialize\', {
+                      key: \'id[]\',
+                      expression: \'id_(.+)\'
+                      }));
+                  }
+                });
+            });
+            </script>
+            ';
+
+          return $block;
+        }
+     
+      }
+      elseif ($delta == 1 && user_access('mark multifacet records')) {
+
+        $block['title'] = t("Saved Folder");
+       
+        if ( count( $_SESSION['multifacet_marked_records'])) {
+          $block['content'] .= '<div id="multifacet_marked_block"><a href="'
+            . base_path() .'multifacet/marked">'
+            . t("You have %num saved item(s)",
+              array(
+                '%num' => count($_SESSION['multifacet_marked_records']),
+                )
+            ) .'</a></div>';
+
+          $block['content'] .= '<div id="multifacet_marked_clear">'
+            . l(t("Delete all saved items"), 'multifacet/marked_clear',
+              array(
+                'class' => 'nyroModal',
+              ))
+            .'</div>';
+ 
+        }
+        else {
+          $block['content'] .= '<div id="multifacet_marked_block">'
+            . t("You have no saved items")
+            .'</div><div id="multifacet_marked_clear"></div>';
+        }
+
+        return $block;
+
+      // Tag block
+      }
+      elseif ( $delta == 2) {
+
+        $block['title'] = t( "Tagging");
+
+        // looking at a 'tagger', so retrieve tags
+        if ( $_GET['tagger']) {
+          $content .= t("Tags used by %tagger",
+              array( '%tagger' => $_GET['tagger']))
+            . multifacet_tag_cloud($_GET['tagger']);
+        }
+
+        if ( $_GET['tag']) {
+          $content .= t("Taggers Using %tag",
+              array( '%tag' => $_GET['tag']))
+            . multifacet_tagger_cloud($_GET['tag']);
+        }
+
+        /*
+        while ( list( $facet_name, $facet_field) =
+            each ( $multifacet_tagged_facets)) {
+
+          $content = "";
+          while ( list( $facet_value, $facet_count) = each( $facet_field)) {
+            $content .= ' <a href="'. base_path()
+              .'search/multifacet/*?field='
+              . drupal_urlencode($_multifacet_default_search_field) .'&'
+              . drupal_urlencode( $facet_name) .'='.
+              drupal_urlencode($facet_value) .'">'. $facet_value .'</a>';
+          }
+
+          if ( $content) {
+            if ( $facet_name == "tagger") {
+              $label = $_multifacet_tagger_facet['label'];
+            }
+            elseif ( $facet_name == "tag"){
+              $label = $_multifacet_tag_facet['label'];
+            }
+            $block['content'] .= '<div class="multifacet_tagged_facet"><div
+              class="multifacet_tagged_facet_header">'. $label .'</div>'
+              . $content .'</div>';
+          }
+
+        }
+        */
+        $block['content'] = $content;
+        return $block;
+      }
+      elseif ($delta == 3 && user_access('search multifacet')) {
+        $block['title'] = t( "MULtifacet Quick Search");
+        //$block['content'] = 'argh';
+        $block['content'] = drupal_get_form('multifacet_quick_search_form');
+        return $block;
+      }
+ 
+  }
+
+}
+
+/*
+ * map 'human' labels on status, etc
+ *
+ * probably should do this at
+ * indextime, rather than display
+ */
+function _multifacet_map_facet_values($facet, $value) {
+  global $_multifacet_map_facet_values;
+
+
+  if (isset($_multifacet_map_facet_values[$facet][$value])) {
+    /*
+    print $facet .": ". $value .": "
+      . $_multifacet_map_facet_values[$facet][$value] ."<br />";
+    */
+    return $_multifacet_map_facet_values[$facet][$value];
+  }
+  else {
+    return $value;
+  }
+}
+
+/*
+ * basic form/template for tagging
+ * records
+ */
+function multifacet_tag_template($id) {
+
+  if ( user_access( 'tag multifacet records')) {
+ 
+    $output .= '<a href="'. base_path() .'multifacet/tag/'
+      . drupal_urlencode($id)
+      .'" class="nyroModal multifacet_tag_this_link" target="_blank">'
+      . t( "Tag") .'</a>';
+   
+    return $output;
+ 
+  }
+
+}
+
+function multifacet_sms_template($id) {
+
+  global $user, $_multifacet_sms_carriers;
+
+  if ( user_access( 'sms multifacet records') &&
+      count( $_multifacet_sms_carriers)) {
+ 
+    //$output .= '<div>';
+
+    $output .= '<a href="'. base_path() .'multifacet/sms/'
+      . drupal_urlencode($id)
+      .'" class="nyroModal multifacet_sms_link" target="_blank">'
+      . t( "Send to phone") .'</a>';
+   
+    //$output .= '</div>';
+
+    return $output;
+ 
+  }
+
+}
+
+function multifacet_reorder_facets() {
+
+  global $_multifacet_facets, $user;
+
+  $response = array();
+
+  $response['reordered_facets'] = _multifacet_merge_facets( $_GET['id']);
+  $_SESSION['multifacet_facet_order'] = $response['reordered_facets'];
+ 
+  if ($user->uid) {
+    $response['uid'] = $user->uid;
+    $extra_data = array('multifacet_facet_order' => $_SESSION['multifacet_facet_order']);
+    user_save( $user, $extra_data);
+  }
+
+  print_r( drupal_to_js($response));
+
+}
+
+function multifacet_toggle_facets($facet) {
+
+  global $_multifacet_facets, $user;
+
+  $response = array();
+
+  if ( !count( $_SESSION['multifacet_collapsed_facets'])) {
+    $_SESSION['multifacet_collapsed_facets'] = array( );
+  }
+
+  if ( array_key_exists($facet, $_multifacet_facets)) {
+    if ($_SESSION['multifacet_collapsed_facets'][$facet]) {
+      unset( $_SESSION['multifacet_collapsed_facets'][$facet]);
+      $response['toggle'] = 'expanded';
+    }
+    else {
+      $_SESSION['multifacet_collapsed_facets'][$facet] = 1;
+      $response['toggle'] = 'collapsed';
+    }
+  }
+  else {
+    $_SESSION['multifacet_collapsed_facets'][$facet] = 1;
+    $response['toggle'] = 'collapsed';
+  }
+
+  // return the new image/alt
+  if ( $response['toggle'] == 'collapsed') {
+    $response['img'] = base_path() . drupal_get_path('module', 'multifacet')
+      .'/expand.gif';
+    $response['label'] = t("Expand");
+  }
+  else {
+    $response['img'] = base_path() . drupal_get_path('module', 'multifacet')
+      .'/collapse.gif';
+    $response['label'] = t("Collapse");
+  }
+
+  if ($user->uid) {
+    $extra_data = array('multifacet_collapsed_facets' => $_SESSION['multifacet_collapsed_facets']);
+    user_save( $user, $extra_data);
+  }
+
+  $response['facet'] = $facet;
+
+  print_r( drupal_to_js($response));
+
+}
+
+function multifacet_toggle_all_facets($state = 'collapsed') {
+
+  global $_multifacet_facets, $user;
+
+  $response = array();
+
+  unset( $_SESSION['multifacet_collapsed_facets']);
+
+  while ( list( $key, $value) = each ($_multifacet_facets)) {
+    if ($state == 'collapsed') {
+      $_SESSION['multifacet_collapsed_facets'][$key] = 1;
+    }
+  }
+  reset( $_multifacet_facets);
+
+  // return the new image/alt
+  if ($state == 'collapsed') {
+    $response['toggle'] = 'collapsed';
+    $response['img'] = base_path() . drupal_get_path('module', 'multifacet')
+      .'/expand.gif';
+    $response['label'] = t("Expand");
+  }
+  else {
+    $response['toggle'] = 'show';
+    $response['img'] = base_path() . drupal_get_path('module', 'multifacet')
+      .'/collapse.gif';
+    $response['label'] = t("Collapse");
+  }
+
+  if ($user->uid) {
+    $extra_data = array('multifacet_collapsed_facets' => $_SESSION['multifacet_collapsed_facets']);
+    user_save( $user, $extra_data);
+  }
+
+  print_r( drupal_to_js($response));
+
+}
+
+function multifacet_sms_ajax($id, $number, $carrier) {
+
+  $sms = _multifacet_sms($id, $number, $carrier);
+
+  $response['id'] = $id;
+  $response['label'] = $sms['label'];
+  $response['number'] = $sms['number'];
+  $response['carrier'] = $sms['carrier'];
+
+  print_r( drupal_to_js($response));
+
+}
+
+function multifacet_sms_submit() {
+
+  $number_id = $_POST['id'] ."_sms_number";
+  $carrier_id = $_POST['id'] ."_sms_carrier";
+  $sms = _multifacet_sms($_POST['id'], $_POST[$number_id], $_POST[$carrier_id]);
+
+  //drupal_set_message($sms['label']);
+  //header("Location:". $_SERVER['HTTP_REFERER'] ."#". $_POST['id']);
+  //header("Location:". $_SERVER['HTTP_REFERER']);
+  print t("Message Sent");
+}
+
+/*
+ * generic smsing function that
+ * supports both the ajax and
+ * traditional form submission
+ */
+function _multifacet_sms($id, $number, $carrier) {
+ 
+  global $user, $_multifacet_sms_carriers, $_multifacet_return_email_address,
+    $_multifacet_unique_key, $_multifacet_sms_record_callback;
+
+  if ( !array_key_exists($carrier, $_multifacet_sms_carriers)) {
+    $label = t( "Invalid Carrier: ". $carrier) . print_r( $_multifacet_sms_carriers, TRUE);
+  }
+  else {
+    $response = multifacet_solr_search($_multifacet_unique_key .":". $id, 0,
+      1);
+
+    if ( $response->response->numFound) {
+      $message = $_multifacet_sms_record_callback( $response->response->docs[0]);
+      drupal_mail('multifacet_marked', trim($number) .'@'. $carrier,
+        t("MULtifacet SMS Export"), $message,
+        $_multifacet_return_email_address);
+      $label = t( "Message Sent");
+    }
+    else {
+      $label = t( "Record Not Found");
+    }
+ 
+    $_SESSION['multifacet_sms_number'] = $number;
+    $_SESSION['multifacet_sms_carrier'] = $carrier;
+ 
+  }
+
+  return array(
+    'label' => $label,
+    'number' => $number,
+    'carrier' => $carrier,
+    'id' => $id,
+  );
+
+}
+
+/*
+ * generic tagging function that will
+ * support both the ajax and traditional
+ * form submission
+ */
+function _multifacet_tag($id, $tags = NULL, $title = NULL) {
+ 
+  global $user, $_multifacet_tag_splitter, $_multifacet_unset_fields,
+    $_multifacet_commit_on_tag, $_multifacet_unique_key, $multifacet_solr,
+    $_multifacet_solr_tags;
+
+  $split_tags = array_map('trim', explode($_multifacet_tag_splitter['value'],
+    $tags));
+
+  $result = db_query("SELECT tag FROM {multifacet_tagged_records}
+    WHERE uid='%d' AND id='%s'", $user->uid, $id);
+
+  while ( $row = db_fetch_array($result)) {
+    $existing_tags[] = $row['tag'];
+  }
+ 
+  if ( count($split_tags) && count( $existing_tags)) {
+    $delete_tags = array_diff($existing_tags, $split_tags);
+  }
+  elseif ( $existing_tags) {
+    $delete_tags = $existing_tags;
+  }
+
+  if ( count($split_tags) && count( $existing_tags)) {
+    $add_tags = array_diff($split_tags, $existing_tags);
+  }
+  elseif ( count( $split_tags)) {
+    $add_tags = $split_tags;
+  }
+
+  foreach ($add_tags as $add_tag) {
+    $add_tag = trim($add_tag);
+    if ( $add_tag) {
+      $result = db_query("INSERT INTO {multifacet_tagged_records}
+          (uid, id, tag, public)
+        VALUES ('%d', '%s', '%s', '%s')", $user->uid, $id, $add_tag,
+          $user->multifacet_public_tags);
+      if (db_error($result)) {
+        $label = t("INSERT ERROR");
+      }
+    }
+  }
+
+  if ( count( $delete_tags)) {
+    $delete_clause = "'". join("', '",
+      array_map('db_escape_string', $delete_tags)) ."'";
+    $result = db_query("DELETE FROM {multifacet_tagged_records} WHERE uid='%d'
+          AND id='%s' AND tag IN (". $delete_clause .")", $user->uid, $id);
+    if (db_error( $result)) {
+      $label = t("DELETE ERROR");
+    }
+  }
+
+  // add a space to the splitter, if the splitter
+  // isn't a space to begin with
+  if ( $_multifacet_tag_splitter['value'] != ' ') {
+    $splitter = $_multifacet_tag_splitter['value'] ." ";
+  }
+  else {
+    $splitter = $_multifacet_tag_splitter['value'];
+  }
+
+  /*
+   * regrab all of the user's tags for this item,
+   * as the json returned will update
+   * the interface
+   */
+  $result = db_query("SELECT tag FROM {multifacet_tagged_records}
+    WHERE id='%s' AND uid='%d' ORDER BY added",
+    $id, $user->uid);
+
+  unset( $_SESSION['multifacet_tagged_records'][$id]);
+ 
+  while ($row = db_fetch_array( $result)) {
+    $_SESSION['multifacet_tagged_records'][$id][] = $row['tag'];
+    if ( $return_tags) {
+      $return_tags .= $splitter;
+    }
+    $return_tags .= '<a href="'. base_path() .'search/multifacet/*?tag='
+      . drupal_urlencode( $row['tag']) .'">'. $row['tag'] .'</a>';
+  }
+
+  if ( !isset( $label)) {
+    $label = t( "Tags Saved");
+  }
+
+  /*
+   * regrab all of the public tags for this item,
+   * as the json returned will update
+   * the interface
+   */
+  $result = db_query("SELECT tag FROM {multifacet_tagged_records}
+    WHERE id='%s' AND public='t' GROUP BY tag",
+    $id, $user->uid);
+ 
+  while ($row = db_fetch_array( $result)) {
+    if ( $public_tags) {
+      $public_tags .= $splitter;
+    }
+    $public_tags .= '<a href="'. base_path() .'search/multifacet/*?tag='
+      . drupal_urlencode( $row['tag']) .'">'. $row['tag'] .'</a>';
+  }
+
+  /*
+   * regrab all of the taggers for this item,
+   * as the json returned will update
+   * the interface
+   */
+  $result = db_query("SELECT {users}.uid AS uid, {users}.name AS name
+    FROM {users}, {multifacet_tagged_records}
+    WHERE {multifacet_tagged_records}.id='%s'
+      AND ( {multifacet_tagged_records}.public='t' OR {users}.uid='%d' )
+      AND {multifacet_tagged_records}.uid={users}.uid
+    GROUP BY {users}.uid", $id, $user->uid);
+
+  while ( $row = db_fetch_array( $result)) {
+    if ($taggers) {
+      $taggers .= $splitter;
+    }
+    $taggers .= '<a href="'. base_path() .'search/multifacet/*?tagger='
+      . drupal_urlencode( $row['name']) .'">'. check_plain($row['name'])
+      .'</a>';
+  }
+
+  if ($_multifacet_solr_tags) {
+ 
+    $extras['indent'] = "on";
+    $response = multifacet_solr_search($_multifacet_unique_key .':"'. $id
+      .'"', 0, 1, $extras);
+
+    if ( count( $response->response->docs)) {
+
+      $doc = $response->response->docs[0];
+   
+      $user_tags = $user->name .'_tags';
+     
+      if ( count( $doc->tagger)) {
+        $key = array_search( $user->name, $doc->tagger);
+
+        if ( $key !== FALSE) {
+
+          $orig_taggers = $doc->tagger;
+          unset( $orig_taggers[$key]);
+
+          unset($doc->tagger);
+          $taggers = array_values( $orig_taggers);
+         
+          $user_tags = $user->name .'_tags';
+          unset( $doc->$user_tags);
+         
+        }
+      }
+
+      foreach ( $split_tags as $split_tag) {
+        $split_tag = trim( $split_tag);
+        if ( $split_tag) {
+          $solr_tags[] = $split_tag;
+        }
+      }
+
+      if ( count( $solr_tags)) {
+        $doc->$user_tags = $solr_tags;
+        $taggers[] = $user->name;
+      }
+    
+      $doc->tagger = $taggers;
+
+      unset($doc->tag);
+      foreach ( $_multifacet_unset_fields as $unset) {
+        unset( $doc->$unset);
+      }
+
+      $multifacet_solr->addDocument( $doc);
+
+      if ( $_multifacet_commit_on_tag) {
+        $multifacet_solr->commit();
+      }
+   
+    }
+
+  }
+  return (array(
+    'label' => $label,
+    'tags' => $return_tags,
+    'public_tags' => $public_tags,
+    'taggers' => $taggers,
+    )
+  );
+
+}
+
+function _multifacet_clear_marked($state) {
+ 
+  global $user;
+
+  $response = array();
+ 
+  if ($state) {
+    $response['label'] = t( "Saved items successfully deleted");
+    $response['add_label'] = t( "Add to Folder");
+    $response['block_label'] = t("You have no saved records");
+    $response['clear_label'] = '';
+
+    /*
+     * delete them permanently, as
+     * this person is logged in
+     */
+    if ( $user->uid) {
+      $result = db_query("DELETE FROM {multifacet_marked_records}
+        WHERE uid='%d'", $user->uid);
+    }
+
+    /*
+     * delete from the session,
+     * regardless of who they are.
+     */
+    unset($_SESSION['multifacet_marked_records']);
+
+  }
+  else {
+    //$response['label'] = t( "Saved items not deleted");
+  }
+
+  $response['uid'] = $user->uid;
+
+  return ( $response);
+
+}
+
+/*
+ * ajax tagging
+ */
+function multifacet_tag_ajax($id, $tags = NULL, $title = NULL) {
+ 
+  global $user, $_multifacet_tag_splitter;
+
+  $response = _multifacet_tag( $id, $tags, $title);
+  //print_r( $response);
+  $response['id'] = $id;
+  $response['label'] = $response['label'];
+  $response['tags'] = $response['tags'];
+
+  print_r( drupal_to_js($response));
+
+}
+
+function multifacet_marked_clear_ajax($state) {
+ 
+  $response = _multifacet_clear_marked($state);
+  //print_r( $response);
+  print_r( drupal_to_js($response));
+
+}
+
+/*
+ * non-ajax processing of tags
+ */
+function multifacet_tags_submit() {
+
+  $tags_id = $_POST['id'] ."_tags";
+  $response = _multifacet_tag( $_POST['id'], $_POST[$tags_id]);
+ 
+  drupal_set_message(t("Tags Saved"));
+  //header("Location:". $_SERVER['HTTP_REFERER'] ."#". $_POST['id']);
+  //header("Location:". $_SERVER['HTTP_REFERER']);
+  print t("Tags Saved");
+
+}
+
+/*
+ * generic marking function that
+ * supports both the ajax and
+ * traditional form submission
+ */
+function _multifacet_mark($id) {
+ 
+  global $user;
+
+  /*
+   * user is logged in, so save them
+   * to the db, "permanently"
+   */
+  if ( $user->uid) {
+    $result = db_query("DELETE FROM {multifacet_marked_records}
+      WHERE uid='%d' AND id='%s'", $user->uid, $id);
+
+    if (db_affected_rows( $result)) {
+      unset($_SESSION['multifacet_marked_records'][$id]);
+      $label = t( "Add to Folder");
+      $marked = 0;
+    }
+    else {
+      $result = db_query("INSERT INTO {multifacet_marked_records} (uid, id,
+          public)
+        VALUES('%d','%s','%s')", $user->uid, $id,
+          $user->multifacet_public_marked);
+      
+      $_SESSION['multifacet_marked_records'][$id] = 1;
+      $label = t( "Remove from Folder");
+      $marked = 1;
+   
+    }
+
+  // anonymous user, so only to the SESSION
+  }
+  else {
+
+      if ( isset($_SESSION['multifacet_marked_records'][$id])) {
+        unset($_SESSION['multifacet_marked_records'][$id]);
+        $label = t( "Add to Folder");
+        $marked = 0;
+      }
+      else {
+        $_SESSION['multifacet_marked_records'][$id] = 1;
+        $label = t( "Remove from Folder");
+        $marked = 1;
+      }
+  }
+
+  if ( count( $_SESSION['multifacet_marked_records'])) {
+    $block_label = '<a href="'. base_path() .'multifacet/marked">'
+      . t("You have %num saved item(s)",
+        array(
+          '%num' => count($_SESSION['multifacet_marked_records']),
+          )
+      ) .'</a>';
+  }
+  else {
+    $block_label= t("You have no saved items");
+  }
+
+  if ( count( $_SESSION['multifacet_marked_records'])) {
+    $clear_label = '<a href="'. base_path()
+      .'multifacet/marked_clear" class="nyroModal">'
+      . t("Delete all saved items") .'</a>';
+  }
+  else {
+    $clear_label = "";
+  }
+
+  return array(
+    'label' => $label,
+    'block_label' => $block_label,
+    'clear_label' => $clear_label,
+    'marked' => $marked,
+    'marked_count' => count($_SESSION['multifacet_marked_records'])
+  );
+
+}
+
+/*
+ * basic button for marking records
+ *
+ * takes in the $id, and an optional
+ * $remove, which will remove the
+ * <li> via ajax.  using this on the
+ * marked records page
+ */
+function multifacet_mark_template($id) {
+
+  if ( user_access( 'mark multifacet records')) {
+
+    if (isset( $_SESSION['multifacet_marked_records'][$id])) {
+      $label = t("Remove from Folder");
+    }
+    else {
+      $label = t("Add to Folder");
+    }
+
+    $output .= '<a href="'. base_path() .'multifacet/mark_submit/'.
+      drupal_urlencode($id) .'"
+      id="'. $id .'_mark_form" class="multifacet_mark_link"
+      onclick="multifacet_mark_ajax(\''. $id .'\'); return false;">'. $label .'</a>';
+    return $output;
+  }
+
+}
+
+function multifacet_cite_template($oclc_no) {
+
+  global $_multifacet_worldcat_citation_formats;
+
+  if ( user_access( 'search multifacet') && $oclc_no) {
+
+    $output .= '<a href="'. base_path() .'multifacet/cite/'
+      . drupal_urlencode($oclc_no)
+      .'" class="nyroModal multifacet_cite_link" target="_blank">'
+      . t( "Cite") .'</a>';
+    return $output;
+  }
+
+}
+
+function multifacet_sms($id) {
+ 
+  global $user, $_multifacet_sms_carriers;
+
+  _multifacet_no_cache_headers( );
+ 
+  $output .= '<html>
+  <head>
+    <title>'. t("MULtifacet SMS") .'</title>
+    <style type="text/css" media="all">@import "'. base_path()
+      . drupal_get_path('module', 'multifacet')
+      .'/multifacet.css";</style>
+    <script type="text/javascript" src="'. base_path()
+      .'misc/jquery.js"></script>
+    <script type="text/javascript" src="'. base_path()
+      .'misc/drupal.js"></script>
+    <script type="text/javascript" src="'. base_path()
+      . drupal_get_path('module', 'multifacet')
+      .'/jquery.nyroModal-1.3.1.js"></script>
+    <script type="text/javascript" src="'. base_path()
+      . drupal_get_path('module', 'multifacet')
+      .'/jquery.multifacet.js"></script>
+    <script type="text/javascript">
+      var Drupal_base_path = "'. base_path() .'";
+      $(function() {
+        $("#'. $id .'_sms_number").focus();
+      });
+    </script>
+  </head>
+ 
+  <body id="multifacet_sms_page">
+  ';
+
+  /*
+   * FIXME
+   *
+   * should really be looking at using
+   * the Forms API for all/most forms
+   */
+  if ( user_access( 'sms multifacet records') &&
+      count( $_multifacet_sms_carriers)) {
+ 
+    $output .= '<div id="multifacet_sms">';
+   
+    $output .= '<form action="'. base_path() .'multifacet/sms_submit"
+      id="'. $id .'_sms_form" class="multifacet_sms_form"
+      onsubmit="multifacet_sms_ajax(\''. $id .'\', $(\'#'. $id
+        .'_sms_number\').val(), $(\'#'. $id
+        .'_sms_carrier\').val()); return false;" method="post">';
+   
+    $output .= '<label for="'. $id .'_sms_number"><strong>'
+      . t('Send to: ')
+      .'</strong></label>';
+   
+    $output .= '<input type="hidden" name="id" value="'. check_plain($id)
+      .'"/>';
+   
+    $output .= '<input size="10" maxlength="10" type="text"
+      id="'. $id .'_sms_number" name="'. $id .'_sms_number"
+      value="'. check_plain($_SESSION['multifacet_sms_number']) .'"/>';
+  
+    $output .= t('@') .'<select id="'. $id .'_sms_carrier" name="'. $id
+      .'_sms_carrier">';
+   
+    while ( list( $carrier, $label) = each($_multifacet_sms_carriers)) {
+
+      $output .= '<option value="'. check_plain($carrier) .'"';
+
+      if ( $_SESSION['multifacet_sms_carrier'] == $carrier) {
+        $output .= ' selected="selected"';
+      }
+
+      $output .= '>'. check_plain($label) .'</option>';
+    }
+   
+    $output .= '</select>';
+   
+    reset( $_multifacet_sms_carriers);
+   
+    $output .= '<input type="submit" value="'. t("Send") .'" id="'
+      . $id .'_sms_button"/>';
+    $output .= "</form>";
+    $output .= "</div>";
+ 
+  }
+
+  $output .= '</body></html>';
+  print $output;
+
+}
+
+function multifacet_tag($id) {
+ 
+  global $user, $_multifacet_sms_carriers, $_multifacet_tag_splitter,
+    $_multifacet_unique_key;
+
+  _multifacet_no_cache_headers( );
+ 
+  $output .= '<html>
+  <head>
+    <title>'. t("MULtifacet Tagging") .'</title>
+    <style type="text/css" media="all">@import "'. base_path()
+      . drupal_get_path('module', 'multifacet')
+      .'/multifacet.css";</style>
+    <script type="text/javascript" src="'. base_path()
+      .'misc/jquery.js"></script>
+    <script type="text/javascript" src="'. base_path()
+      .'misc/drupal.js"></script>
+    <script type="text/javascript" src="'. base_path()
+      . drupal_get_path('module', 'multifacet')
+      .'/jquery.nyroModal-1.3.1.js"></script>
+    <script type="text/javascript" src="'. base_path()
+      . drupal_get_path('module', 'multifacet')
+      .'/jquery.multifacet.js"></script>
+    <script type="text/javascript">
+      var Drupal_base_path = "'. base_path() .'";
+      $(function() {
+        $("#'. $id .'_tags").focus();
+      });
+    </script>
+  </head>
+ 
+  <body id="multifacet_tag_page">
+  ';
+
+  if ( user_access( 'tag multifacet records')) {
+
+    $result = db_query("SELECT tag FROM {multifacet_tagged_records}
+      WHERE id='%s' AND uid='%d' ORDER BY added",
+        $id, $user->uid);
+
+    while ( $row = db_fetch_array( $result)) {
+      $tagged[] = $row['tag'];
+    }
+
+    /*
+    $user_tags = $user->name .'_tags';
+    $extras['fl'] = $user_tags;
+   
+    $response = multifacet_solr_search($_multifacet_unique_key .':"'. $id
+      .'"', 0, 1, $extras);
+  
+    if ( count( $response->response->docs)) {
+      $doc = $response->response->docs[0];
+      $tags = $doc->$user_tags;
+    }
+    */
+
+    // add a space to the splitter, if the splitter
+    // isn't a space to begin with
+    if ( $_multifacet_tag_splitter['value'] != ' ') {
+      $splitter = $_multifacet_tag_splitter['value'] ." ";
+    }
+    else {
+      $splitter = $_multifacet_tag_splitter['value'];
+    }
+   
+    $tags = @implode($splitter, $tagged);
+
+    $output .= '<div id="multifacet_tag">';
+    $output .= '<form action="'. base_path() .'multifacet/tags_submit"
+      id="'. $id .'_tag_form" class="multifacet_tag_form"
+      onsubmit="multifacet_tag_ajax(\''. $id .'\', $(\'#'. $id
+        .'_tags\').val(), $(\'#'. $id
+        .'_tags\').val()); return false;" method="post">';
+    $output .= '<label for="'. $id .'_tags"><strong>'
+      . t('Tags ('. $_multifacet_tag_splitter['label'] .'-separated): ')
+      .'</strong></label>';
+    $output .= '<input type="hidden" name="id" value="'. check_plain($id)
+      .'"/>';
+    $output .= '<input size="40" type="text"
+      id="'. $id .'_tags" name="'. $id .'_tags"
+      value="'. $tags .'"/>';
+  
+    $output .= '<input type="submit" value="'. t("Save") .'" id="'
+      . $id .'_tag_button"/>';
+$output .= "</form>";
+    $output .= "</div>";
+ 
+  }
+
+  $output .= '</body></html>';
+  print $output;
+}
+
+function multifacet_mark_ajax($id) {
+
+  $marked = _multifacet_mark($id);
+
+  $response['id'] = $id;
+  $response['label'] = $marked['label'];
+  $response['block_label'] = $marked['block_label'];
+  $response['count'] = $marked['marked_count'];
+  $response['clear_label'] = $marked['clear_label'];
+
+  print_r( drupal_to_js($response));
+
+}
+
+/*
+ * non-ajax processing of marking records
+ */
+function multifacet_mark_submit($id) {
+
+  $response = _multifacet_mark($id);
+
+  if ( $response['marked'] == 1) {
+    $message = t("Record Marked");
+  }
+  else {
+    $message = t("Record UnMarked");
+  }
+
+  drupal_set_message($message);
+  /*
+   * FIXME (possibly)
+   *
+   * some browsers don't provide
+   * the HTTP_REFERER header (lynx and links),
+   * so maybe think about this some
+   * more
+   */
+  //print_r( $_SERVER);
+  header("Location:". $_SERVER['HTTP_REFERER']);
+  //header("Location:". $_SERVER['HTTP_REFERER'] ."#". $id);
+
+}
+
+/*
+ * basic tagcloud.
+ *
+ * optionally receives a username
+ */
+function multifacet_tag_cloud($name = NULL) {
+
+  global $_multifacet_tagcloud_max, $user;
+
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/multifacet.css');
+
+  if ($name) {
+   
+    $result = db_query( "SELECT uid FROM {users} WHERE name='%s'", $name);
+
+    while ( $row = db_fetch_array( $result)) {
+      $uid = $row['uid'];
+    }
+
+    if ( $user->name == $name) {
+      $result = db_query("SELECT tag, count(*) AS count
+        FROM {multifacet_tagged_records}
+        WHERE uid='%d'
+        GROUP BY tag
+        ORDER BY tag
+        LIMIT %d", $uid, $_multifacet_tagcloud_max);
+    }
+    else {
+      $result = db_query("SELECT tag, count(*) AS count
+        FROM {multifacet_tagged_records}
+        WHERE public='t' AND uid='%d'
+        GROUP BY tag
+        ORDER BY tag
+        LIMIT %d", $uid, $_multifacet_tagcloud_max);
+    }
+  }
+  else {
+    if ( $user->uid) {
+      $result = db_query("SELECT tag, count(*) AS count
+        FROM {multifacet_tagged_records}
+        WHERE(public='t' OR uid='%d')
+        GROUP BY tag
+        ORDER BY tag
+        LIMIT %d", $user->uid, $_multifacet_tagcloud_max);
+    }
+    else {
+      $result = db_query("SELECT tag, count(*) AS count
+        FROM {multifacet_tagged_records}
+        WHERE public='t'
+        GROUP BY tag
+        ORDER BY tag
+        LIMIT %d", $_multifacet_tagcloud_max);
+    }
+  }
+
+  if ( db_num_rows( $result)) {
+    while ( $row = db_fetch_array( $result)) {
+      $output .= ' <a class="multifacet_tag_link "href="'. base_path()
+        .'search/multifacet/*?tag='. drupal_urlencode($row['tag']);
+      if ( $name)  {
+        $output .= '&tagger='. drupal_urlencode($name);
+      }
+      $output .=  '">'. $row['tag'] .'</a>';
+    }
+  }
+  else {
+    $output .= t("No tags for this user");
+  }
+
+  return '<div id="multifacet_tagcloud">'. $output .'</div>';
+
+}
+
+/*
+ * cloud of "taggers"
+ *
+ * optionally receives a tag used
+ * by a set of taggers
+ */
+function multifacet_tagger_cloud($tag = NULL) {
+
+  global $_multifacet_tagcloud_max, $user;
+
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/multifacet.css');
+
+  if ($tag) {
+   
+    $result = db_query("SELECT count({users}.uid) AS count, {users}.uid AS uid,
+        {users}.name AS name, multifacet_tagged_records.tag AS tag
+      FROM {users}, {multifacet_tagged_records}
+      WHERE {multifacet_tagged_records}.tag='%s'
+        AND ( {multifacet_tagged_records}.public='t' OR {users}.name='%d' )
+        AND {multifacet_tagged_records}.uid={users}.uid
+      GROUP BY {users}.uid", $tag, $user->uid);
+
+  }
+  else {
+    $result = db_query("SELECT count({users}.uid) AS count, {users}.uid AS uid,
+        {users}.name AS name, multifacet_tagged_records.tag AS tag
+      FROM {users}, {multifacet_tagged_records}
+      WHERE ({multifacet_tagged_records}.public = 't' OR {users}.uid='%d' )
+        AND {multifacet_tagged_records}.uid = {users}.uid
+      GROUP BY {users}.uid", $user->uid);
+  }
+
+  if ( db_num_rows( $result)) {
+
+    while ( $row = db_fetch_array( $result)) {
+      $output .= ' <a class="multifacet_tag_link "href="'. base_path()
+        .'search/multifacet/*?tagger='. drupal_urlencode($row['name']);
+      if ( $tag)  {
+        $output .= '&tag='. drupal_urlencode($tag);
+      }
+      $output .=  '">'. $row['name'] .'</a>';
+    }
+
+  }
+  else {
+    $output .= t("No users are tagging with this term");
+  }
+
+  return '<div id="multifacet_tagcloud">'. $output .'</div>';
+
+}
+
+/*
+ * recently used tags
+ */
+function multifacet_tags_recent($uid = NULL) {
+
+  global $_multifacet_tagrecent_max, $user;
+
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/multifacet.css');
+ 
+  if ($uid) {
+
+    if ( $user->uid == $uid) {
+      $result = db_query("SELECT tag, added
+        FROM {multifacet_tagged_records}
+        WHERE uid='%d'
+        GROUP BY tag
+        ORDER BY added DESC
+        LIMIT %d", $uid, $_multifacet_tagrecent_max);
+    }
+    else {
+      $result = db_query("SELECT tag, added
+        FROM {multifacet_tagged_records}
+        WHERE public='t' AND uid='%d'
+        GROUP BY tag
+        ORDER BY added
+        LIMIT %d", $uid, $_multifacet_tagrecent_max);
+    }
+
+  }
+  else {
+    if ( $user->uid) {
+      $result = db_query("SELECT tag, added
+        FROM {multifacet_tagged_records}
+        WHERE(public='t' OR uid='%d')
+        ORDER BY added
+        LIMIT %d", $user->uid, $_multifacet_tagrecent_max);
+    }
+    /**
+     * 
+     */
+    else {
+      $result = db_query("SELECT tag, added
+        FROM {multifacet_tagged_records}
+        WHERE public='t'
+        ORDER BY added
+        LIMIT %d", $_multifacet_tagrecent_max);
+    }
+  }
+
+  $output .= "<ul>";
+  while ( $row = db_fetch_array( $result)) {
+    $output .= "<li>". $row['tag'] ." (". $row['added'] .")</li>";
+  }
+  $output .= "</ul>";
+
+  return $output;
+
+}
+
+
+/*
+ * FIXME
+ *
+ * think about how/what is deemed
+ * popular..items, tags, both?
+ *
+ * and how to order/filter/etc
+ */
+function multifacet_tags_popular_items() {
+
+  global $_multifacet_tagrecent_max;
+
+  $result = db_query("SELECT id, count(*) AS count
+    FROM {multifacet_tagged_records}
+    WHERE public='t'
+    GROUP BY uid, id
+    ORDER BY count DESC
+    LIMIT %d", $_multifacet_tagrecent_max);
+
+  $output .= "<ul>";
+  while ( $row = db_fetch_array( $result)) {
+    $output .= "<li>". $row['id'] ." (". $row['count'] .")</li>";
+  }
+  $output .= "</ul>";
+
+  //return "argh";
+  return $output;
+
+}
+
+/*
+ * site-wide tags page, showing
+ * both the cloud, and recent
+ * activity....and others to come
+ */
+function multifacet_tags_combined($name = NULL) {
+
+  global $_multifacet_tagrecent_max;
+
+  $output .= multifacet_tag_cloud($name);
+ 
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/multifacet.css');
+
+  /*
+ 
+  $output .= '<div>'. l(t("MULtifacet Tagcloud"), 'multifacet/tags/cloud/'
+    . $uid) . multifacet_tag_cloud($uid) .'</div>';
+ 
+  $output .= '<hr noshade="noshade" />';
+ 
+  $output .= '<div>'. l(t("MULtifacet Recently Used Tags"),
+    'multifacet/tags/recent/'. $uid) . multifacet_tags_recent($uid) .'</div>';
+
+  $output .= '<hr noshade="noshade" />';
+ 
+  $output .= '<div>'. l(t("MULtifacet Popular Items"),
+    'multifacet/tags/popular_items') . multifacet_tags_popular_items()
+    .'</div>';
+  */
+
+  return $output;
+}
+
+function multifacet_browse($facet = NULL) {
+
+  global $_multifacet_unique_key, $_multifacet_facets,
+    $_multifacet_default_browse_facet;
+
+  drupal_add_js(drupal_get_path('module', 'multifacet') . 
+    '/jquery.nyroModal-1.3.1.pack.js');
+  $js = "$(function() { 
+    $.nyroModalSettings({
+      titleFromIframe: false
+    });
+  })";
+  drupal_add_js($js, 'inline');
+
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/nyroModal.css');
+  drupal_add_css(drupal_get_path('module', 'multifacet') .'/multifacet.css');
+  drupal_add_js(drupal_get_path('module', 'multifacet')
+    .'/jquery.tablesorter.min.js');
+  drupal_add_js(drupal_get_path('module', 'multifacet') .
+    '/jquery.multifacet.js');
+ 
+  $extras['indent'] = "on";
+  if (count( $_multifacet_facets)) {
+    $extras['facet'] = "true";
+    $extras['facet.mincount'] = 1;
+
+    $output .= '<form id="multifacet_browse_form">
+      <select id="multifacet_browse_option" name="multifacet_browse_option">
+        <option value="">'. t( "Choose a Browsing Criteria:") .'</option>';
+
+    while ( list( $facet_name, $details) =
+        each( $_multifacet_facets)) {
+      $extras['facet.field'][] = $facet_name;
+      $extras['facet.limit'][] = (int) $details['browse_number'];
+
+      $output .= '<option value="'. $facet_name .'"';
+
+      if ($facet_name == $_multifacet_default_browse_facet) {
+        $output .= ' selected="selected"';
+      }
+
+      $output .= '>'
+        . $_multifacet_facets[$facet_name]['label'] .'</option>';
+    }
+ 
+    $output .= '</select></form>';
+   
+    $response = multifacet_solr_search("*:*", 0, 0, $extras);
+
+    if ( $response->response->numFound) {
+
+      $output .= '<div id="multifacet_browse_wrapper"></div>';
+
+      while ( list( $facet_name, $facet_field) =
+        each($response->facet_counts->facet_fields)) {
+   
+        $output .= '<div id="'. $facet_name
+          .'_browse_div" class="multifacet_browse_div" style="display: none;">
+          <span class="multifacet_browse_header">'
+          . $_multifacet_facets[$facet_name]['label'] .'</span>
+        <table id="'. $facet_name .'_browse_table"
+          class="multifacet_browse_table">
+        <thead>
+        <tr>
+          <th>'. t( "Sort by Alphabet") .'</th>
+          <th>'. t( "Sort by Count") .'</th>
+        </tr>
+        </thead>
+        <tbody>
+        ';
+
+        while ( list( $facet_value, $facet_count) = each( $facet_field)) {
+
+          /*
+           * made these "external"
+           * urls, with fullpaths,
+           * so they aren't styled as
+           * "current page" links
+           */
+          $output .= '<tr><td>'
+            . l(_multifacet_map_facet_values($facet_name, $facet_value),
+            'http://'. $_SERVER['SERVER_NAME']
+              . base_path() .'search/multifacet/*',
+            NULL,
+            'field=keyword'
+            .'&fn[]='. drupal_urlencode($facet_name)
+            .'&fv[]='. drupal_urlencode($facet_value)
+            .'&keep_f=1')
+            .'</td><td class="multifacet_browse_count">'. $facet_count 
+            .'</td></tr>';
+
+        }
+
+        $output .= "</tbody></table></div>";
+     
+      }
+
+    }
+    else {
+      $output .= t( "No results found");
+    }
+ 
+  }
+  else {
+    $output .= t( "No browse facets defined in configuration.");
+  }
+
+  return $output;
+
+}
+
+/*
+ * hook_user
+ */
+function multifacet_user($op, &$edit, &$account, $category = NULL) {
+
+  global $_multifacet_public_tags_default, $_multifacet_public_marked_default;
+
+  switch ( $op) {
+
+    case 'categories':
+      return multifacet_categories();
+      break;
+
+    /*
+     * FIXME
+     *
+     * still confused on how to do
+     * this upon 'load'....seems to
+     * add to the user object, but
+     * i'm losing it someplace, so
+     * just adding it to the SESSION
+     */
+    case 'login':
+
+      /*
+       * logging-in, but had marked records
+       * as anonymous, so insert the
+       * existing SESSION records
+       */
+      if (count( $_SESSION['multifacet_marked_records'])) {
+        while ( list( $key, $value) =
+            each($_SESSION['multifacet_marked_records'])) {
+          if ( $key) {
+            $result = db_query("INSERT INTO {multifacet_marked_records} (uid,
+                id, public)
+              VALUES('%d','%s','%s')", $account->uid, $key,
+                $account->multifacet_public_marked);
+          }
+        }
+      }
+   
+      // add facet-collapsed-ness to SESSION
+      $_SESSION['multifacet_collapsed_facets']
+        = $account->multifacet_collapsed_facets;
+
+      // add facet-ordering to SESSION
+      $_SESSION['multifacet_facet_order'] = $account->multifacet_facet_order;
+
+      // add marked records to the SESSION
+      $marked_records = db_query("SELECT * FROM {multifacet_marked_records}
+        WHERE uid='%d'", $account->uid);
+
+      while ( $row = db_fetch_array( $marked_records)) {
+        $_SESSION['multifacet_marked_records'][$row['id']] = 1;
+      }
+     
+      // add tagged records to the SESSION
+      $tagged_records = db_query("SELECT * FROM {multifacet_tagged_records}
+        WHERE uid='%d' ORDER BY added ASC", $account->uid);
+
+      while ( $row = db_fetch_array( $tagged_records)) {
+        $_SESSION['multifacet_tagged_records'][$row['id']][] = $row['tag'];
+      }
+
+      break;
+
+    case 'view':
+
+      if ( user_access( 'tag multifacet records', $account)) {
+
+        if ($account->multifacet_public_tags
+            || ($account->uid == $user->uid)) {
+          $items['multifacet_tagged'] = array(
+            'value' => l(t('Tagged Records'),
+              "multifacet/tags/$account->name"),
+          );
+        }
+        else {
+          $items['multifacet_tagged'] = array(
+            'value' => t('No Publicly Tagged Records'),
+          );
+        }
+      }
+     
+      if ( user_access( 'mark multifacet records', $account)) {
+        if ($account->multifacet_public_marked
+            || ($account->uid == $user->uid)) {
+          $items['multifacet_marked'] = array(
+            'value' => l(t('Saved Records'),
+              "multifacet/marked/$account->name"),
+          );
+        }
+        else {
+          $items['multifacet_marked'] = array(
+            'value' => t('No Publicly Saved Records'),
+          );
+        }
+      }
+     
+      return array( "MULtifacet" => $items);
+      break;
+
+    case 'form':
+      /*
+      print "<pre>form";
+      print_r( $edit);
+      print_r( $account);
+      print_r( $category);
+      print "</pre>";
+      */
+    
+      if ( $category == 'multifacet') {
+
+        $form['multifacet_user_prefs'] = array(
+            '#type' => 'fieldset',
+            '#title' => t('MULtifacet Preferences'),
+            '#collapsible' => TRUE,
+            '#collapsed' => FALSE,
+            );
+
+        if ( user_access( 'tag multifacet records')
+            || user_access( 'mark multifacet records')) {
+
+          $public = array('t' => t('Yes'), 'f' => t('No'));
+
+          if (!isset($account->multifacet_public_tags)) {
+              $account->multifacet_public_tags =
+                $_multifacet_public_tags_default;
+          }
+         
+          if (!isset($account->multifacet_public_marked)) {
+              $account->multifacet_public_marked =
+                $_multifacet_public_marked_default;
+          }
+         
+          if ( user_access( 'tag multifacet records', $account)) {
+            $form['multifacet_user_prefs']['multifacet_public_tags'] = array(
+                '#type' => 'radios',
+                '#title' => t('Public Tags'),
+                '#default_value' => $account->multifacet_public_tags,
+                '#options' => $public,
+                '#description' => t('Public tags will be shown to other users,
+                  and used to calculate popularity/etc.'),
+                );
+          }
+
+          if ( user_access( 'mark multifacet records', $account)) {
+            $form['multifacet_user_prefs']['multifacet_public_marked'] = array(
+                '#type' => 'radios',
+                '#title' => t('Marked Records are Public'),
+                '#default_value' => $account->multifacet_public_marked,
+                '#options' => $public,
+                '#description' => t('Public marked Records can be shown to other
+                  users.'),
+                );
+          }
+       
+          return $form;
+      
+        }
+
+      }
+
+      break;
+
+    case 'update':
+     
+      /*
+      print "<pre>update<br />";
+      print_r( $edit);
+      print_r( $account);
+      print_r( $category);
+      */
+     
+      if ( $category == 'multifacet') {
+
+
+        if ($edit['multifacet_public_tags']
+            != $account->multifacet_public_tags) {
+          //print "update tags please, making them "
+          //. $edit['multifacet_public_tags'] ."<br />";
+          $result = db_query("UPDATE {multifacet_tagged_records}
+            SET public='%s'
+            WHERE uid='%d'",
+            $edit['multifacet_public_tags'],
+            $account->uid
+            );
+          //print db_affected_rows( $result) ."<br />";
+        }
+       
+        if ($edit['multifacet_public_marked']
+            != $account->multifacet_public_marked) {
+          //print "update marked please, making them "
+          //  . $edit['multifacet_public_marked'] ."<br />";
+          $result = db_query("UPDATE {multifacet_marked_records}
+            SET public='%s'
+            WHERE uid='%d'",
+            $edit['multifacet_public_marked'],
+            $account->uid
+            );
+          //print db_affected_rows( $result) ."<br />";
+        }
+
+      }
+      break;
+   
+    case 'insert':
+      $edit['multifacet_public_tags'] = $_multifacet_public_tags_default;
+      $edit['multifacet_public_marked'] = $_multifacet_public_marked_default;
+      break;
+ 
+    case 'delete':
+      print "<pre>";
+      print "delete all marked/tagged items";
+      print_r( $account);
+      break;
+ 
+  }
+
+}
+
+/*
+ * return a separate user-edit
+ * category for the multifacet
+ * preferences
+ */
+function multifacet_categories() {
+
+  $data[] = array(
+      'name' => t("multifacet"),
+      'title' => t("MULtifacet Preferences"),
+      'weight' => 3,
+      );
+  return $data;
+
+}
+
+/*
+ * caching libraything cover script
+ *
+ * inspired-by/stolen-from:
+ *
+ * http://cheerfulcurmudgeon.com/2008/08/11/caching-free-librarything-book-covers/
+ *
+ */
+function multifacet_ltcover($isbn, $size = 'medium') {
+
+  global $_multifacet_librarything_apikey,
+    $_multifacet_librarything_default_image, $_multifacet_librarything_cache_dir;
+
+  $sizes = array(
+    'small',
+    'medium',
+    'large',
+  );
+
+  if (!in_array( $size, $sizes)) {
+    $size = 'medium';
+  }
+
+  $isbn = strtoupper(preg_replace('/[^0-9Xx]/', '', $isbn));
+
+  if (strlen($isbn) == 10 || strlen($isbn) == 13) {
+    $directory =
+      _multifacet_make_ltcovers_dir($_multifacet_librarything_cache_dir, $isbn);
+
+
+    $image_file = $directory .'/'. $isbn .'_'. $size .'.jpg';
+  
+    if (!file_exists( $image_file)) {
+      $url = 'http://covers.librarything.com/devkey/'
+        . $_multifacet_librarything_apikey .'/'. $size .'/isbn/'. $isbn;
+     
+      if ( $remote = fopen( $url, 'r')) {
+        $image = '';
+        while ( !feof( $remote)) {
+          $image .= fread( $remote, 8192);
+        }
+        fclose( $remote);
+        if ( strlen($image) > 100 && $local = fopen($image_file, 'w')) {
+          fwrite( $local, $image);
+          fclose($local);
+        }
+      }
+    }
+ 
+  }
+
+  if (!file_exists( $image_file)) {
+    $image_file = $_multifacet_librarything_default_image;
+  }
+  //print $image_file;
+  header('Content-Type: image/jpeg');
+  header('Content-Length: '. filesize($image_file));
+  readfile($image_file);
+}
+
+function _multifacet_make_ltcovers_dir($dir = '/tmp', $isbn) {
+  $parts = array(
+    $dir,
+    substr($isbn, 0, 3),
+    substr($isbn, 3, 3),
+    substr($isbn, 6, 3),
+    substr($isbn, 9, 3),
+  );
+
+  if ( strlen($isbn) == 13) {
+    $parts[] = substr($isbn, 12, 3);
+  }
+
+  $directory = implode('/', $parts);
+
+  if ( !file_exists( $directory)) {
+    for ( $i = 0; $i < count($parts); $i++) {
+      $path .= '/'. $parts[$i];
+      @mkdir($path);
+    }
+  }
+  return $directory;
+}
+
+function multifacet_marked_submit() {
+
+  global $_multifacet_unique_key, $_multifacet_email_record_callback,
+    $_multifacet_return_email_address, $_multifacet_do_refworks, $user,
+    $_multifacet_email_marked, $_multifacet_proxy_prepend,
+    $_multifacet_refworks_prepend, $_multifacet_screen_record_callback;
+
+  /*
+  print "<pre>";
+  print_r($_POST);
+  print "</pre>";
+  */
+
+  $ids = array();
+
+  // looking at your own marked records
+  if ( !isset($_POST['uid']) || $_POST['uid'] == $user->uid) {
+
+    $ids = array_keys( $_SESSION['multifacet_marked_records']);
+
+  // looking at someone's "public" marked records
+  }
+  elseif ($_POST['uid'] ) {
+
+    // lookup the publicly marked records
+    $result = db_query("SELECT id FROM {multifacet_marked_records}
+      WHERE public='t' AND uid='%d'", $_POST['uid']);
+
+    if ( db_num_rows( $result)) {
+
+      while ( $row = db_fetch_array( $result)) {
+        $ids[] = $row['id'];
+      }
+
+    }
+
+  }
+
+  $solr_query = $_multifacet_unique_key .':("'.  @implode('" OR "', $ids) .'")';
+  $extras['indent'] = "on";
+
+  //print_r( $_POST);
+  if ( $_POST['multifacet_export_options'] == 'refworks'
+    && $_multifacet_do_refworks) {
+
+    $query = $_multifacet_unique_key .'[]='.
+      implode(drupal_urlencode('&') . $_multifacet_unique_key .'[]=',
+        array_map('drupal_urlencode', $ids));
+
+    $location = $_multifacet_proxy_prepend . $_multifacet_refworks_prepend
+      ."&url=http://". $_SERVER['HTTP_HOST'] . base_path()
+      ."multifacet/refworks%3Fexport=1%26". $query ."\n\n";
+
+  }
+  elseif ( $_POST['multifacet_export_options'] == 'email'
+    && $_multifacet_email_marked)  {
+
+    $_POST['email'] = trim( $_POST['email']);
+
+    if ( $_POST['multifacet_export_email']) {
+
+      $response = multifacet_solr_search($solr_query, 0, count($ids), $extras);
+
+      if ( $response->response->numFound) {
+        foreach ( $response->response->docs as $doc) {
+          $output .= $_multifacet_email_record_callback($doc);
+        }
+       
+        drupal_mail('multifacet_marked', $_POST['multifacet_export_email'],
+          t("MULtifacet Exported Records"), $output,
+          $_multifacet_return_email_address);
+      }
+
+      drupal_set_message(t("Records Exported."));
+      $location = $_SERVER['HTTP_REFERER'];
+ 
+    }
+    else {
+      drupal_set_message(t("Please supply an email address."), 'warning');
+      $location = $_SERVER['HTTP_REFERER'];
+    }
+  }
+  elseif ( $_POST['multifacet_export_options'] == 'screen') {
+
+      $response = multifacet_solr_search($solr_query, 0, count($ids), $extras);
+
+      _multifacet_no_cache_headers( );
+ 
+      $output .= '<html>
+      <head>
+        <title>'. t("MULtifacet Print Records") .'</title>
+        <style type="text/css" media="all">@import "'. base_path()
+          . drupal_get_path('module', 'multifacet')
+          .'/multifacet.css";</style>
+      </head>
+     
+      <body id="multifacet_screen_records_page">';
+
+      if ( $response->response->numFound) {
+
+        $i = 1;
+        foreach ( $response->response->docs as $doc) {
+          $output .= '<div>'. t( "Record #%i", array( '%i' => $i)) .'</div>'
+            .  $_multifacet_screen_record_callback($doc) .'<hr />';
+          $i++;
+        }
+     
+      }
+  
+      $output .= '</body></html>';
+
+      print $output;
+     
+  }
+
+  if ( $location) {
+    header( "Location: ". $location);
+  }
+
+}
+
+function multifacet_marked_clear() {
+
+  global $user;
+
+  _multifacet_no_cache_headers( );
+ 
+  $output .= '<html>
+  <head>
+    <title>'. t("MULtifacet Clear Marked Items") .'</title>
+    <script type="text/javascript">
+      var Drupal_base_path = "'. base_path() .'";
+    </script>
+    <style type="text/css" media="all">@import "'. base_path()
+      . drupal_get_path('module', 'multifacet')
+      .'/multifacet.css";</style>
+    <script type="text/javascript" src="'. base_path()
+      .'misc/jquery.js"></script>
+    <script type="text/javascript" src="'. base_path()
+      .'misc/drupal.js"></script>
+    <script type="text/javascript" src="'. base_path()
+      . drupal_get_path('module', 'multifacet')
+      .'/jquery.nyroModal-1.3.1.js"></script>
+    <script type="text/javascript" src="'. base_path()
+      . drupal_get_path('module', 'multifacet')
+      .'/jquery.multifacet.js"></script>
+  </head>
+ 
+  <body>
+  ';
+
+  if ( $_GET['multifacet_marked_clear_confirm']) {
+    $response = _multifacet_clear_marked(1);
+    $output .= '<p>'. $response['label'] .'</p>';
+    $output .= '<div>'. l(t("Search MULtifacet"), 'search/multifacet')
+      .'</div>';
+  }
+  elseif ( $_GET['multifacet_marked_clear_cancel']) {
+    $response = _multifacet_clear_marked(0);
+    $output .= '<p>'. $response['label'] .'</p>';
+    $output .= '<div>'. l(t("Search MULtifacet"), 'search/multifacet')
+      .'</div>';
+  }
+  else {
+
+    $output .= '
+    <p>
+    '. t("This will delete all of your saved items.  Are you positive you want
+      to do this?") .'
+    </p>
+    <form action="'. base_path() .'multifacet/marked_clear" method="get"
+      onsubmit="return false;">
+      <input type="submit" id="multifacet_marked_clear_confirm"
+        onclick="multifacet_clear_marked(1); return false;"  
+        name="multifacet_marked_clear_confirm" value="'. t( "Yes, delete them.")
+        .'" />
+      <!--
+      <input type="submit" id="multifacet_marked_clear_cancel"
+        onclick="multifacet_clear_marked(0); return false;"  
+        name="multifacet_marked_clear_cancel" value="'. t( "Don't delete.")
+        .'" />
+      -->
+      <a id="multifacet_marked_clear_cancel" href="'. $_SERVER['HTTP_REFERER']
+        .'" onclick="multifacet_clear_marked(0); return false;"  
+        name="multifacet_marked_clear_cancel">'. t( "Cancel")
+        .'</a>
+    </form>
+    <div id="multifacet_marked_clear_message"></div>
+    ';
+
+  }
+
+  $output .= "</body></html>";
+
+  print $output;
+
+}
+
+function multifacet_unapi_template( $id) {
+ 
+  $output .= '<abbr class="unapi-id" title="'. $id
+    .'"><!-- &nbsp; --></abbr>';
+
+  return $output;
+
+}
+
+
+function multifacet_coins_template($doc) {
+
+  $coin = "ctx_ver=Z39.88-2004&amp;rfr_id=info:sid/". $_SERVER['HTTP_HOST']
+    .":multifacet&amp;rft_val_fmt=info:ofi/fmt:kev:mtx:book&amp;rft.isbn="
+    . drupal_urlencode($doc->isn[0]) ."&amp;rft.genre=book&amp;rft.btitle="
+    . drupal_urlencode($doc->display_title) ."&amp;rft.au="
+    . drupal_urlencode($doc->mainheading[0]) ."&amp;rft.place="
+    . drupal_urlencode( $doc->pubplace[0]) ."&amp;rft.pub="
+    . drupal_urlencode( $doc->publisher[0]) ."&amp;rft.date="
+    . drupal_urlencode( $doc->original_pubdate[0]);
+ 
+  return '<span class="Z3988" title="'. $coin .'"><!-- &nbsp; --></span>';
+
+}
+
+function multifacet_gbooks_template($key) {
+
+  $output .= '<a target="_blank" class="multifacet_gbook" id="'. $key
+    .'"><!-- &nbsp; --></a>';
+
+  /*
+  $output = '
+  <script type="text/javascript">
+  GBS_insertPreviewButtonPopup(\''. $key .'\');
+  </script>
+  ';
+  */
+ 
+  return $output;
+}
+
+function multifacet_worldcat_template($oclc) {
+
+  global $_multifacet_unique_key;
+
+  $url = 'http://www.worldcat.org/oclc/'. drupal_urlencode($oclc);
+
+  return '<a href="'. $url .'" target="_worldcat">'. t("Worldcat")
+    .'</a>';
+
+}
+
+function multifacet_delicious_template($doc) {
+
+  global $_multifacet_unique_key;
+
+  $url = 'http://delicious.com/save?jump=no&title='
+    . drupal_urlencode( $doc->display_title) .'&url='
+    . _multifacet_record_link( $doc->$_multifacet_unique_key);
+
+  return '<a href="'. $url .'" target="_delicious"><img src="'. base_path()
+  . drupal_get_path( 'module', 'multifacet') .'/delicious.png" border="0"
+    alt="'.  t( "Save to Delcious") .'"/></a>';
+
+}
+
+function multifacet_refworks_template($id) {
+
+  global $_multifacet_unique_key, $_multifacet_do_refworks;
+
+  if ( $_multifacet_do_refworks) {
+    $url = base_path() .'multifacet/refworks/?id[]='. drupal_urlencode($id);
+
+    /*
+    return '<a target="RefWorksMain" href="'. $url .'"><img src="'
+      . base_path( ). drupal_get_path('module', 'multifacet') .'/refworks.png'
+      .'" alt="'. t( "Export to RefWorks") .'" border="0" /></a>';
+    */
+    return '<a target="RefWorksMain" href="'. $url
+      .'" class="multifacet_refworks_link">'. t("RefWorks")
+      .'</a>';
+  }
+
+}
+
+function multifacet_refworks() {
+
+  global $_multifacet_unique_key, $_multifacet_proxy_prepend,
+    $_multifacet_refworks_prepend, $_multifacet_do_refworks,
+    $_multifacet_ris_record_callback;
+
+  if ( count( $_GET['id'])) {
+    if ( $_GET['export']) {
+
+      $solr_query = $_multifacet_unique_key .':("'.
+        @implode('" OR "', $_GET['id']) .'")';
+
+      $response = multifacet_solr_search($solr_query, 0,
+          count($_GET['id']));
+
+      if ( $response->response->numFound) {
+        foreach ( $response->response->docs as $doc) {
+          $output .= $_multifacet_ris_record_callback($doc);
+        }
+        header( "Content-type: text/plain; charset=UTF-8");
+        print $output;
+      }
+    }
+    else {
+      $query = $_multifacet_unique_key .'[]='.
+        implode(drupal_urlencode('&') . $_multifacet_unique_key .'[]=',
+          array_map('drupal_urlencode', $_GET['id']));
+        $url = $_multifacet_proxy_prepend . $_multifacet_refworks_prepend
+          ."&url=http://". $_SERVER['HTTP_HOST'] . base_path()
+          ."multifacet/refworks%3Fexport=1%26". $query ."\n\n";
+   
+      header("Location: ". $url);
+    }
+  }
+
+}
+
+function _multifacet_rss_record($doc) {
+
+  global $_multifacet_unique_key;
+
+  $output['title'] = $doc->display_title;
+  $output['link'] = _multifacet_record_link($doc->$_multifacet_unique_key);
+  $output['description'] = $doc->composed_mattype;
+
+  return $output;
+}
+
+function _multifacet_ris_record($doc) {
+
+  global $_multifacet_unique_key;
+ 
+  $ris = array( );
+
+  if ( $doc->composed_mattype == "Serials") {
+      $ris['TY'] = "TY  - JFULL";
+  }
+  elseif ( eregi("sound recording", $doc->composed_mattype)) {
+      $ris['TY'] = "TY  - SOUND";
+  }
+  elseif ( $doc->gmd == "videorecording") {
+      $ris['TY'] = "TY  - VIDEO";
+  }
+  else {
+      $ris['TY'] = "TY  - BOOK";
+  }
+
+  $ris['TI'] = "TI  - ". $doc->display_title;
+
+  if ( count( $doc->mainheading)) {
+    $ris['A1'] = "A1  - ". @implode ( "\nA1  - ", $doc->mainheading);
+    /*
+     * need to fix the solr schema
+     */
+    $mainheading = $doc->mainheading[0];
+  }
+
+  if ( count( $doc->authors)) {
+    foreach ( $doc->authors as $author) {
+      if ( $ris['AU']) {
+        $ris['AU'] .= "\n";
+      }
+      if ( $author != $mainheading) {
+        $ris['AU'] .= "AU  - ". $author;
+      }
+    }
+  }
+
+  if ( count($doc->original_pubdate)) {
+    $ris['PY'] = "PY  - ". $doc->original_pubdate[0];
+  }
+ 
+  if ( count($doc->publisher)) {
+    $ris['PB'] = "PB  - ". $doc->publisher[0];
+  }
+
+  if ( count($doc->pubplace)) {
+    $ris['CY'] = "CY  - ". $doc->pubplace[0];
+  }
+
+  if ( count($doc->publisher)) {
+    $ris['PB'] = "PB  - ". $doc->publisher[0];
+  }
+
+  if ( count( $doc->isn)) {
+    $ris['SN'] = "SN  - ". @implode ( "\nSN  - ", $doc->isn);
+  }
+
+  if ( count( $doc->subjects)) {
+    $ris['KW'] = "KW  - ". @implode ( "\nKW  - ", $doc->subjects);
+  }
+
+  if ( count( $doc->notes_public)) {
+    $ris['N1'] = "N1  - ". @implode ( "\nN1  - ", $doc->notes_public);
+  }
+ 
+  /*
+  $ris['UR'] = 'UR  - http://'. $_SERVER['HTTP_HOST'] . base_path()
+    .'multifacet/record/'. $doc->$_multifacet_unique_key;
+  */
+
+  return implode("\n", $ris) ."\nER  -\n";
+
+}
+
+function _multifacet_record_link($id) {
+
+  $url = 'http://'. $_SERVER['HTTP_HOST'] . base_path()
+    .'multifacet/record/'. drupal_urlencode($id);
+ 
+  return $url;
+
+}
+
+function _multifacet_mlt_record( $doc) {
+
+  global $_multifacet_unique_key;
+
+  $output = '<a href="'. base_path() .'multifacet/record/'.
+    $doc->$_multifacet_unique_key .'">'. $doc->maintitle .'</a>';
+
+  return $output;
+}
+
+function multifacet_unapi() {
+
+  global $_multifacet_unapi_formats, $_multifacet_unique_key;
+
+  if ( $_GET['id']) {
+
+    $extras['indent'] = "on";
+    $response = multifacet_solr_search($_multifacet_unique_key .':"'
+      . $_GET['id'] .'"', 0, 1, $extras);
+  
+    if ( !$response->response->numFound) {
+
+      header( "HTTP/1.0 404 Not Found");
+      print "404 Not Found";
+
+    }
+    else {
+
+      if ( $_GET['format']) {
+        if ( array_key_exists( $_GET['format'], $_multifacet_unapi_formats)) {
+          header( "Content-type: "
+            . $_multifacet_unapi_formats[$_GET['format']]['content-type']);
+          print $_multifacet_unapi_formats[$_GET['format']]['callback']($response->response->docs[0]);
+        }
+        else {
+          header( "HTTP/1.0 406 Not Acceptable");
+          print "406 Not Acceptable";
+        }
+
+      }
+      else {
+
+        header( "HTTP/1.1 300 Multiple Choices");
+        header( "Content-type: application/xml");
+        #header( "Content-type: text/plain");
+        $output = "<formats id=\"". $_GET['id'] ."\">";
+
+        while ( list( $format, $info ) = each( $_multifacet_unapi_formats) ) {
+          $output .= "\n<format name=\"". $format ."\" type=\""
+            . $info['content-type'] ."\"";
+
+          if ( $info['docs']) {
+            $output .= " docs=\"". $info['docs'] ."\"";
+          }
+
+          $output .= " />";
+       
+        }
+
+        $output .= "\n</formats>";
+        print $output;
+      }
+ 
+    }
+
+  }
+  else {
+    header( "Content-type: application/xml");
+    #header( "Content-type: text/plain");
+    $output = "<formats>";
+
+    while ( list( $format, $info ) = each( $_multifacet_unapi_formats) ) {
+      $output .= "\n<format name=\"". $format ."\" type=\"".
+        $info['content-type'] ."\"";
+
+      if ( $info['docs']) {
+        $output .= " docs=\"". $info['docs'] ."\"";
+      }
+
+      $output .= " />";
+    }
+
+    $output .= "\n</formats>";
+
+    print $output;
+
+
+  }
+
+}
+
+function _multifacet_screen_record($doc) {
+
+  global $_multifacet_unique_key;
+
+  $output .= '<table class="multifacet_screen_record">';
+
+  $output .= '<tr><th>'. t( "Title:") .'</th><td>'. $doc->display_title;
+  if ( $doc->statement_of_responsibility) {
+    $output .= " / ". $doc->statement_of_responsibility[0];
+  }
+  $output .= '</td></tr>';
+
+  /*
+  if ( isset( $doc->mainheading)) {
+      $output .= '<tr><th>'. t( "Main Author: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->mainheading as $mainheading) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $output .= $mainheading;
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+  */
+
+  // don't show if authors is exact same as mainheading
+  //if ( isset( $doc->authors) && $doc->authors != $doc->mainheading) {
+  if ( isset( $doc->authors)) {
+      $output .= '<tr><th>'. t( "Other Authors: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->authors as $author) {
+        // hide any that are already show as mainheadings
+        if (!@in_array($author, $doc->mainheading))  {
+          if ( $i) {
+            $output .= ", ";
+          }
+          $output .= $author;
+          $i++;
+        }
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( isset( $doc->formats)) {
+      $output .= '<tr><th>'
+        . t( "Formats: ") .'</th><td>';
+      $i = 0;
+      foreach ( $doc->formats as $format) {
+        if ( $i) {
+          $output .= ", ";
+        }
+        $output .= _multifacet_map_facet_values('formats',
+          check_plain($format));
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( isset( $doc->composed_mattype)) {
+      $output .= '<tr><th>'
+        . t( "Material Type: ") .'</th><td>'
+        . _multifacet_map_facet_values('composed_mattype',
+          check_plain($doc->composed_mattype)) .'</td></tr>';
+  }
+
+  if ( isset( $doc->languages)) {
+      $output .= '<tr><th>'. t( "Language: ")
+        .'</th><td>'. check_plain(implode(", ", $doc->languages))
+        .'</td></tr>';
+  }
+
+  if ( isset( $doc->imprint)) {
+    $output .= '<tr><th>'. t("Published: ")
+      .'</th><td>'. check_plain(implode( '<br />', $doc->imprint))
+      .'</td></tr>';
+  }
+ 
+  if ( isset( $doc->series_traced)) {
+      $output .= '<tr><th>'. t( "Series: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->series_traced as $series) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $series_info = explode("\t", $series);
+        $output .= $series_info[0];
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( isset( $doc->subjects)) {
+      $output .= '<tr><th>'. t( "Subjects: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->subjects as $subject) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $output .= $subject;
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( isset( $doc->urls)) {
+      $output .= '<tr><th>'. t( "Online Access: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->urls as $url) {
+        $url_info = explode("\t", $url);
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $output .= $url;
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+
+  if ( isset( $doc->item_callnumber)) {
+      $output .= '<tr><th>'. t( "Call Number: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->item_callnumber as $item_callnumber) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $output .= _multifacet_map_facet_values('iloc', $doc->iloc[$i]) .': '.
+          check_plain($item_callnumber) .' '.
+          _multifacet_map_facet_values('item_status', $doc->item_status[$i]);
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+ 
+  if ( count($doc->iloc)) {
+
+    $output .= '<tr><th>'. t( "Call Number: ")
+      .'</th><td>';
+    for ( $i = 0; $i < count( $doc->iloc); $i++) {
+
+      if ( $i) {
+        $output .= '<br />';
+      }
+
+      $output .= _multifacet_map_facet_values('iloc', $doc->iloc[$i]) .': '.
+        check_plain($item_callnumber) .' '.
+        _multifacet_map_facet_values('item_status', $doc->item_status[$i]);
+     
+      if ( isset($doc->item_volume[$i])) {
+        $output .= ' '. $doc->item_volume[$i];
+      }
+
+      if ( isset($doc->item_copy[$i])) {
+        $output .= ' c.'. $doc->item_copy[$i];
+      }
+
+      $output .= ' '. _multifacet_map_facet_values('item_status',
+        $doc->item_status[$i]);
+     
+    }
+    $output .= '</td></tr>';
+ 
+  }
+
+  if ( isset( $doc->extent)) {
+      $output .= '<tr><th>'. t( "Physical Description: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->extent as $extent) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $output .= check_plain($extent);
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+ 
+  if ( isset( $doc->notes_public)) {
+      $output .= '<tr><th>'. t( "Notes: ")
+        .'</th><td>';
+      $i = 0;
+      foreach ( $doc->notes_public as $notes_public) {
+        if ( $i) {
+          $output .= "<br />";
+        }
+        $output .= check_plain($notes_public);
+        $i++;
+      }
+      $output .= '</td></tr>';
+  }
+
+  $output .= '<tr><th>'. t( "Permanent Link: ") .'</th><td><a href="'
+    . _multifacet_record_link( $doc->$_multifacet_unique_key) .'">'
+    . _multifacet_record_link( $doc->$_multifacet_unique_key) .'</a></td></tr>';
+
+  $output .= '</table></div>';
+
+  return $output;
+
+}
+
+/*
+ * merge a users ordered facets
+ * with the ones available in
+ * the configuration
+ */
+function _multifacet_merge_facets($user_facets = NULL) {
+
+  global $_multifacet_facets;
+
+  if ( !count( $user_facets)) {
+    $user_facets = array();
+  }
+  $missing = array_values(array_diff(array_keys($_multifacet_facets),
+      $user_facets));
+  $extra = array_values(array_diff($user_facets,
+    array_keys($_multifacet_facets)));
+  $remove_extras = array_diff( $user_facets, $extra);
+  $merged_facets = array_merge($remove_extras, $missing);
+
+  return ( $merged_facets);
+
+}
+
+function multifacet_rss() {
+
+  global $_multifacet_rss_record_callback;
+
+  header( "Content-type: application/rss+xml");
+ 
+  $return_link = 'http://'. $_SERVER['HTTP_HOST'] . base_path()
+    . str_replace('q=multifacet/rss/', 'search/multifacet/',
+      $_SERVER['QUERY_STRING']);
+ 
+  $_GET['q'] = str_replace('multifacet/rss/', '', $_GET['q']);
+
+  $result = _multifacet_search($_GET['q'], FALSE);
+
+  $title = t( "MULtifacet RSS Feed: ") . $_GET['q'];
+
+  print '<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+    <channel>
+        <title>'. check_plain($title) .'</title>
+        <description>'. check_plain($title) .'</description>
+        <link>'. check_url($return_link) .'</link>
+        <lastBuildDate>'. date('r') .'</lastBuildDate>';
+
+  if (count( $result)) {
+    foreach ( $result as $doc) {
+      $item = $_multifacet_rss_record_callback( $doc);
+      print format_rss_item($item['title'], $item['link'], $item['description']);
+    }
+  }
+
+  print '</channel>
+</rss>';
+
+}
+
+/*
+ * Safari seems to be caching the modal
+ * iframes, so trying to fix that...sigh
+ */
+function _multifacet_no_cache_headers() {
+  header("Expires: Mon, 26 Jul 1997 05:00:00 GMT");
+  header("Last-Modified: ". gmdate("D, d M Y H:i:s") ." GMT");
+  header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+  header("Cache-Control: post-check=0, pre-check=0", FALSE); 
+  header("Pragma: no-cache"); 
+}
+
+function multifacet_quick_search_form() {
+
+  $form = array(
+  );
+
+  $form['keys'] = array(
+    '#type' => 'textfield',
+    '#title' => '',
+    '#default_value' => $keys,
+    '#size' => 15,
+    '#maxlength' => 255,
+    '#executes_submit_callback' => TRUE,
+  );
+
+  return $form;
+}
+
+function multifacet_quick_search_form_submit( $form_id, $form_values) {
+
+  global $_multifacet_advanced_limits;
+
+  /*
+  print "<pre>";
+  print_r( $form_values);
+  print_r( $_POST);
+  print $append;
+  print "</pre>";
+  */
+
+  drupal_goto('search/multifacet/'. urlencode($form_values['keys']));
+
+}
+
+function multifacet_opensearch() {
+
+  global $_multifacet_rss_record_callback, $_multifacet_num_found,
+    $_multifacet_num_search_results;
+
+  $return_link = 'http://'. $_SERVER['HTTP_HOST'] . base_path()
+    . str_replace('q=multifacet/opensearch/', 'search/multifacet/',
+      $_SERVER['QUERY_STRING']);
+ 
+  $result = _multifacet_search(arg(2), FALSE);
+
+  header( "Content-type: application/rss+xml");
+ 
+  $title = t( "MULtifacet OpenSearch: ") . arg(2);
+  if ( $_GET['pageID'] < 1) {
+    $_GET['pageID'] = 1;
+  }
+  $startIndex = $_multifacet_num_search_results * $_GET['pageID'] - $_multifacet_num_search_results + 1;
+
+  print '<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"
+  xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/"
+  xmlns:atom="http://www.w3.org/2005/Atom">
+    <channel>
+        <title>'. check_plain($title) .'</title>
+        <description>'. check_plain($title) .'</description>
+        <link>'. check_url($return_link) .'</link>
+        <lastBuildDate>'. date('r') .'</lastBuildDate>
+        <opensearch:totalResults>'. $_multifacet_num_found .'</opensearch:totalResults>
+        <opensearch:itemsPerPage>'. $_multifacet_num_search_results .'</opensearch:itemsPerPage>
+        <opensearch:startIndex>'. $startIndex .'</opensearch:startIndex>
+        ';
+
+  if (count( $result)) {
+    foreach ( $result as $doc) {
+      $item = $_multifacet_rss_record_callback( $doc);
+      print format_rss_item($item['title'], $item['link'], $item['description']);
+    }
+  }
+
+  print '</channel>
+</rss>';
+
+}
+
+function multifacet_opensearch_description() {
+
+  global $_multifacet_return_email_address;
+
+  $output .= '<?xml version="1.0" encoding="UTF-8"?>
+<OpenSearchDescription xmlns="http://a9.com/-/spec/opensearch/1.1/">
+ <ShortName>'. t('MULtifacet') .'</ShortName>
+ <Description>'. t('Search the MULtifacet Catalog') .'</Description>
+ <Contact>'. check_plain($_multifacet_return_email_address) .'</Contact>
+ <Image height="16" width="16" type="image/x-icon">http://'. 
+  $_SERVER['HTTP_HOST'] . base_path(). 'misc/favicon.ico</Image>
+ <Query role="example" searchTerms="cat" />
+ <Url type="application/rss+xml" template="http://'. $_SERVER['HTTP_HOST'] . base_path() .'multifacet/opensearch/{searchTerms}?pageID={startPage?}"/>
+ <Url type="text/html" template="http://'. $_SERVER['HTTP_HOST'] . base_path() .'search/multifacet/{searchTerms}?pageID={startPage?}"/>
+</OpenSearchDescription>';
+
+  header("Content-type: application/opensearchdescription+xml; charset=utf-8");
+  //header("Content-type: application/xml; charset=utf-8");
+  print $output;
+
+}
+
+function _multifacet_user_tags ($doc) {
+
+  global $_multifacet_tag_splitter, $user, $_multifacet_unique_key;
+
+  // add a space to the splitter, if the splitter
+  // isn't a space to begin with
+  if ( $_multifacet_tag_splitter['value'] != ' ') {
+    $splitter = $_multifacet_tag_splitter['value'] ." ";
+  }
+  else {
+    $splitter = $_multifacet_tag_splitter['value'];
+  }
+
+  if ( user_access( 'tag multifacet records')) {
+
+    $tags = "";
+    if ( $_multifacet_solr_tags) {
+      $your_tags = $user->name .'_tags';
+      $tags = @implode($splitter, $doc->$your_tags);
+    }
+    else {
+      $result = db_query("SELECT tag
+        FROM {multifacet_tagged_records}
+        WHERE id='%s' AND uid='%d' GROUP BY tag ORDER BY added",
+          $doc->$_multifacet_unique_key, $user->uid);
+
+      while ( $row = db_fetch_array( $result)) {
+        $tagged[] = $row['tag'] ."(". $row['count'] .")";
+        if ( $tags) {
+          $tags .= $splitter;
+        }
+        $tags .= '<a class="multifacet_tag_link" href="'. base_path()
+          .'search/multifacet/*?tag='. drupal_urlencode( $row['tag']) .'">'
+          . check_plain($row['tag']) .'</a>';
+      }
+
+      unset($tagged);
+    }
+
+    $display = "";
+    if (!$tags) {
+      $display = ' style="display:none;"';
+    }
+
+    $output .= '<div id="multifacet_user_tags_'
+      . $doc->$_multifacet_unique_key
+      .'" class="multifacet_record_tags"'. $display .'><strong>'
+      . t("Your Tags: ") .'</strong><span id="multifacet_your_tags_'
+      . $doc->$_multifacet_unique_key .'">'. $tags .'</span></div>';
+
+  }
+
+  return $output;
+
+}
+
+function _multifacet_public_tags ($doc) {
+
+  global $_multifacet_tag_splitter, $user, $_multifacet_unique_key;
+
+  // add a space to the splitter, if the splitter
+  // isn't a space to begin with
+  if ( $_multifacet_tag_splitter['value'] != ' ') {
+    $splitter = $_multifacet_tag_splitter['value'] ." ";
+  }
+  else {
+    $splitter = $_multifacet_tag_splitter['value'];
+  }
+
+  $tags = "";
+  if ( $_multifacet_solr_tags) {
+    $tags = @implode($splitter, $doc->tag);
+  }
+  else {
+
+    $result = db_query("SELECT tag, count(*) AS count
+      FROM {multifacet_tagged_records}
+      WHERE id='%s' AND public='t' GROUP BY tag ORDER BY added",
+        $doc->$_multifacet_unique_key);
+
+    while ( $row = db_fetch_array( $result)) {
+      $tagged[] = $row['tag'] ."(". $row['count'] .")";
+      if ( $tags) {
+        $tags .= $splitter;
+      }
+      $tags .= '<a class="multifacet_tag_link" href="'. base_path()
+        .'search/multifacet/*?tag='. drupal_urlencode( $row['tag']) .'">'
+        . check_plain($row['tag']) .'</a>';
+    }
+
+    $result = db_query("SELECT {users}.uid AS uid, {users}.name AS name
+      FROM {users}, {multifacet_tagged_records}
+      WHERE {multifacet_tagged_records}.id='%s'
+        AND ( {multifacet_tagged_records}.public='t' OR {users}.uid='%d' )
+        AND {multifacet_tagged_records}.uid={users}.uid
+      GROUP BY {users}.uid", $doc->$_multifacet_unique_key, $user->uid);
+
+    while ( $row = db_fetch_array( $result)) {
+      if ($taggers) {
+        $taggers .= $splitter;
+      }
+      $taggers .= '<a class="multifacet_tag_link" href="'. base_path()
+        .'search/multifacet/*?tagger='. drupal_urlencode( $row['name']) .'">'
+        . check_plain($row['name']) .'</a>';
+    }
+
+    unset($tagged);
+
+  }
+
+  $display = "";
+  if (!$tags) {
+    $display = ' style="display:none;"';
+  }
+
+  $output .= '<div id="multifacet_public_tags_div_'
+      . $doc->$_multifacet_unique_key
+      .'"'. $display .'><strong>'. t("Public Tags: ")
+      .'</strong><span id="multifacet_public_tags_'
+      . $doc->$_multifacet_unique_key .'">'. $tags .'</span></div>';
+
+  return $output;
+
+}

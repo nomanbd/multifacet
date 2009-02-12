@@ -1,0 +1,16 @@
+These are some example files that might help get you started.
+
+schema.xml and solrconfig.xml describe the Solr index we are using at this
+time.  There are things in there that aren't being used, and some tweaks to
+field types, particularly the addition of KStem instead of Porter, as KStem is
+a less aggressive stemmer.  More info here:
+
+  http://www.lucidimagination.com/search/p:solr?q=kstem
+
+vufind_templates.php and vufind.inc are very rudimentary examples for using
+MULtifacet as the UI for an existing VUFind-generated Solr index.  Copying
+vufind_templates.php into multifacet/multifacet_templates.php, and vufind.inc
+into multifacet/multifacet.inc would get you started, but more work would still
+need to be done to get it fully functional.  If you happen to work on more
+complete versions of these callbacks and files, we'd love to include them with
+the project.
