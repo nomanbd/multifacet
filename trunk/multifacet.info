@@ -1,27 +1,3 @@
-/* 
- * Copyright (c) 2009 by Miami University Libraries.
- * released under the terms of the GNU Public License.
- * see the GPLv3 for details.
- *
- * Email: cassonrd@muohio.edu
- * Website: http://www.lib.muohio.edu/
- * Website: http://code.google.com/p/multifacet/
- *
- * This file is part of MULtifacet.
- * 
- * MULtifacet is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- * 
- * MULtifacet is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- * 
- * You should have received a copy of the GNU General Public License
- * along with MULtifacet.  If not, see <http://www.gnu.org/licenses/>.
- */
 ; $Id: z3950.info,v 1.1.2.1 2007/09/01 13:21:18 douggreen Exp $
 name = MULtifacet Search
 description = MULtifacet Search.
