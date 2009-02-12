@@ -3191,9 +3191,10 @@ function multifacet_mark_template($id) {
 
 function multifacet_cite_template($oclc_no) {
 
-  global $_multifacet_worldcat_citation_formats;
+  global $_multifacet_worldcat_citation_formats, $_multifacet_worldcat_apikey;
 
-  if ( user_access( 'search multifacet') && $oclc_no) {
+  if ( user_access( 'search multifacet') && $oclc_no 
+    && $_multifacet_worldcat_apikey) {
 
     $output .= '<a href="'. base_path() .'multifacet/cite/'
       . drupal_urlencode($oclc_no)

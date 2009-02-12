@@ -1386,7 +1386,7 @@ $_multifacet_map_facet_values = array(
 );
 
 global $_multifacet_worldcat_apikey;
-$_multifacet_worldcat_apikey = "5IURDHOjh3k0nVXhCpOIltZrc3jjPkihk0byqILeRGYyRzuo8PxVPpqkGSDJFzM4Q8D5IiXL41aU4iT3";
+$_multifacet_worldcat_apikey = "";
 
 /*
  * worldcat currently accepts apa, chicago,
@@ -1422,7 +1422,7 @@ $_multifacet_do_gbooks = TRUE;
  */
 // librarything api key
 global $_multifacet_librarything_apikey;
-$_multifacet_librarything_apikey = "9dd36c125936b0178879faaf7d8cad4f";
+$_multifacet_librarything_apikey = "";
 
 // a default image to show 
 global $_multifacet_librarything_default_image;
