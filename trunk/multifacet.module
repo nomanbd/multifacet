@@ -1362,7 +1362,7 @@ function _multifacet_brief_record($doc) {
     .'">'. $doc->display_title .'</a>';
 
   if ( isset( $doc->urls)) {
-      $output .= '<div><strong>'. t( "Online Access: ") .'</strong>';
+      $output .= '<div><strong>'. t( "Online: ") .'</strong>';
       $i = 0;
       foreach ( $doc->urls as $url) {
         $url_info = explode("\t", $url);
@@ -1806,7 +1806,7 @@ function _multifacet_full_record($doc) {
 
   if ( isset( $doc->urls)) {
       $output .= '<tr><th rowspan="'. count( $doc->urls) .'">'
-        . t( "Online Access: ") .'</th>';
+        . t( "Online: ") .'</th>';
       $i = 0;
       foreach ( $doc->urls as $url) {
         $url_info = explode("\t", $url);
@@ -1922,7 +1922,7 @@ function _multifacet_full_record($doc) {
   }
 
   if ( isset( $doc->url)) {
-      $output .= '<tr><th>'. t( "Online Access: ")
+      $output .= '<tr><th>'. t( "Online: ")
         .'</th><td>';
       $i = 0;
       foreach ( $doc->url as $url) {
@@ -4734,7 +4734,7 @@ function _multifacet_screen_record($doc) {
   }
 
   if ( isset( $doc->urls)) {
-      $output .= '<tr><th>'. t( "Online Access: ")
+      $output .= '<tr><th>'. t( "Online: ")
         .'</th><td>';
       $i = 0;
       foreach ( $doc->urls as $url) {
