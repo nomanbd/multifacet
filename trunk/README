@@ -1,9 +1,19 @@
 ------------
 Introduction
 ------------
-MULtifacet is a Drupal 5 module that wraps a UI around an arbitrary Solr index.  It shares many features with other Solr-based OPAC projects, including faceted search results, SMS/email output, RefWorks integration, user tagging, saving/exporting of records, RSS feeds, Zotero support, Google Books images/linking, "more like this", formatted citation output (via the WorldCat API), COinS, unAPI, etc. While developed for, and initially targeted at, library collections, there's no reason it couldn't put a UI on other Solr indexes that need similar features. There's a bit of ajax, but it should degrade gracefully.
+MULtifacet is a Drupal 5 module that wraps a UI around an arbitrary Solr index.
+It shares many features with other Solr-based OPAC projects, including faceted
+search results, SMS/email output, RefWorks integration, user tagging,
+saving/exporting of records, RSS feeds, Zotero support, Google Books
+images/linking, "more like this", formatted citation output (via the WorldCat
+API), COinS, unAPI, etc. While developed for, and initially targeted at,
+library collections, there's no reason it couldn't put a UI on other Solr
+indexes that need similar features. There's a bit of ajax, but it should
+degrade gracefully.
 
-This module is released under the terms of the GNU General Public License, version 3.  Other external libraries are provided with their accompanying licenses.
+This module is released under the terms of the GNU General Public License,
+version 3.  Other external libraries are provided with their accompanying
+licenses.
 
 MULtifacet is developed by Miami University Libraries.
 
@@ -19,30 +29,47 @@ Requirements
 ------------
 Step-by-Step
 ------------
-These steps should be performed on a dedicated test installation of Drupal, preferably one that closely matches the one you have in production.  Some steps might still be a bit strange, so you definitely don't want to break your real setup.
+These steps should be performed on a dedicated test installation of Drupal,
+preferably one that closely matches the one you have in production.  Some steps
+might still be a bit strange, so you definitely don't want to break your real
+setup.
 
-) Get a Solr index installed, configured, tested, and loaded with data.
-) While in the appropriate modules/ directory for your Drupal installation, get the source code:
+) Get a Solr index installed, configured, tested, and loaded with data.) While
+in the appropriate modules/ directory for your Drupal installation, get the
+source code:
 
     svn co http://multifacet.googlecode.com/svn/trunk/ multifacet
 
-) Replace the Drupal-provided misc/jquery.js with a up-to-date jquery.js.  Yes, this needs to be handled better, and could possibly break other modules in your Drupal installation.  MULtifacet has been tested with version 1.2.6, in particular.
-) Configure multifacet/multifacet.inc.  More details below.
-) Enable the module in the Drupal admin tools. MULtifacet is currently found in the "Other" category.
-) Enable/place the provided blocks: MULtifacet Quick Search, MULtifacet Facets, and MULtifacet Marked Records.
-) Enable/place the provided menu items.
-) Enable roles' access to provided functionality.
+) Replace the Drupal-provided misc/jquery.js with a up-to-date jquery.js.  Yes,
+this needs to be handled better, and could possibly break other modules in your
+Drupal installation.  MULtifacet has been tested with version 1.2.6, in
+particular.) Configure multifacet/multifacet.inc.  More details below.) Enable
+the module in the Drupal admin tools. MULtifacet is currently found in the
+"Other" category.) Enable/place the provided blocks: MULtifacet Quick Search,
+MULtifacet Facets, and MULtifacet Marked Records.) Enable/place the provided
+menu items.) Enable roles' access to provided functionality.
 
 -------------
 Configuration
 -------------
-The core configuration is done in multifacet.inc.  Some examples: the Solr host details, what fields to search (and how they are searched), faceting info, keys for external APIs, results-per-page, proxy info, and other default values.
+The core configuration is done in multifacet.inc.  Some examples: the Solr host
+details, what fields to search (and how they are searched), faceting info, keys
+for external APIs, results-per-page, proxy info, and other default values.
 
-Some of the other important options are the  *_callback settings.  These should be set to names of functions which receive a Solr document, and return a format for rendering, whether that be for the screen, RSS, SMS, email, or unAPI.  Define your custom *_callback functions in multifacet_templates.php.
+Some of the other important options are the  *_callback settings.  These should
+be set to names of functions which receive a Solr document, and return a format
+for rendering, whether that be for the screen, RSS, SMS, email, or unAPI.
+Define your custom *_callback functions in multifacet_templates.php.
 
 Edit multifacet.css for any styling changes.
 
 -----------
 Please Note
 -----------
-Records are not stored as nodes like they are in the Millenium Integration (http://drupal.org/project/millennium) and SOPAC2 (http://thesocialopac.net/) projects. This means you won't have the option of using records as first-class Drupal citizens, and take advantage of the various (and great) node-oriented features.  The combination of CCK and the apachesolr module (http://drupal.org/project/apachesolr) is a very powerful one, but it's different than this module.
+Records are not stored as nodes like they are in the Millenium Integration
+(http://drupal.org/project/millennium) and SOPAC2 (http://thesocialopac.net/)
+projects. This means you won't have the option of using records as first-class
+Drupal citizens, and take advantage of the various (and great) node-oriented
+features.  The combination of CCK and the apachesolr module
+(http://drupal.org/project/apachesolr) is a very powerful one, but it's
+different than this module.
