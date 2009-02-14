@@ -34,20 +34,33 @@ preferably one that closely matches the one you have in production.  Some steps
 might still be a bit strange, so you definitely don't want to break your real
 setup.
 
-) Get a Solr index installed, configured, tested, and loaded with data.) While
-in the appropriate modules/ directory for your Drupal installation, get the
-source code:
+) Get a Solr index installed, configured, tested, and loaded with data.
+
+) While in the appropriate modules/ directory for your Drupal installation, get
+the source code:
 
     svn co http://multifacet.googlecode.com/svn/trunk/ multifacet
+
+) As mentioned in the requirements, MULtifacet uses the SolPHPClient to connect
+to Solr.  If you don't already have this installed, extract Apache.tar in the
+multifacet/ directory.
 
 ) Replace the Drupal-provided misc/jquery.js with a up-to-date jquery.js.  Yes,
 this needs to be handled better, and could possibly break other modules in your
 Drupal installation.  MULtifacet has been tested with version 1.2.6, in
-particular.) Configure multifacet/multifacet.inc.  More details below.) Enable
-the module in the Drupal admin tools. MULtifacet is currently found in the
-"Other" category.) Enable/place the provided blocks: MULtifacet Quick Search,
-MULtifacet Facets, and MULtifacet Marked Records.) Enable/place the provided
-menu items.) Enable roles' access to provided functionality.
+particular.
+
+) Configure multifacet/multifacet.inc.  More details below.
+
+) Enable the module in the Drupal admin tools. MULtifacet is currently found in
+the "Other" category.
+
+) Enable/place the provided blocks: MULtifacet Quick Search, MULtifacet Facets,
+and MULtifacet Marked Records.
+
+) Enable/place the provided menu items.
+
+) Enable roles' access.
 
 -------------
 Configuration
