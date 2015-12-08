@@ -1,0 +1,3 @@
+## Command-line access ##
+
+svn checkout http://multifacet.googlecode.com/svn/trunk/ multifacet
